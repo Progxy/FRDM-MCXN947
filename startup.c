@@ -229,7 +229,6 @@ const uint32_t vector_table[] = {
 
 __attribute__((section(".after_vectors.reset"), naked))
 void reset_handler(void) {
-	//__asm volatile("bkpt");
     //__asm volatile("cpsid i");
 
     const unsigned int data_size = (uintptr_t)&_edata - (uintptr_t)&_sdata;
@@ -240,9 +239,6 @@ void reset_handler(void) {
 
 	//__asm volatile("cpsie i");
 
-	//__asm volatile("ldr r0, =0x707");
- 	//__asm volatile("bkpt");
-
     main();
 
  	while (TRUE);
@@ -250,5 +246,6 @@ void reset_handler(void) {
 
 __attribute__((section(".after_vectors.default_handler"), naked, noreturn))
 void default_handler(void) {
+    __asm volatile("bkpt");
     while (TRUE);
 }

@@ -1,4 +1,4 @@
-CFLAGS  = -mcpu=cortex-m33 -mthumb -mfloat-abi=soft -ffreestanding -fno-builtin -Wall -Wextra -Werror -Og -g3 -I./include
+CFLAGS  = -mcpu=cortex-m33 -mthumb -mfloat-abi=soft -ffreestanding -fno-builtin -Wall -Wextra -Werror -Og -ggdb -I./include
 LDFLAGS = -mcpu=cortex-m33 -mthumb -mfloat-abi=soft -T linker.ld -nostdlib -Wl,--gc-sections
 OBJECTS = build/main.o build/startup.o
 

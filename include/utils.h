@@ -20,4 +20,13 @@ UNUSED_FUNCTION static void memset(void* dest, unsigned char value, int size) {
   return;
 }
 
+UNUSED_FUNCTION static void delay(unsigned int ms) {
+  for (unsigned int j = 0; j < ms; ++j) {
+	  for (unsigned int i = 0; i < 10000; ++i) {
+	 	__asm volatile("nop");
+	  }
+	}
+  return;
+}
+
 #endif //_UTILS_H

@@ -15,9 +15,17 @@ static const unsigned int gpio_bank_offset[6] = { 0x40096000, 0x40098000, 0x4009
 
 void set_gpio_mode(PinMode mode, unsigned int gpio_bank, unsigned int gpio) {
   if (gpio_bank > 5 || gpio > 31) return;
+
+  if (gpio_bank == 0 && gpio == 10) {
+ 	const unsigned int offset = 0xA8;
+ 	volatile unsigned int* const pcr_addr = (unsigned int*) (0x40116000 + offset);
+    *pcr_addr &= ~(0xF00);
+  }
+
   const unsigned int pddr_offset = 0x54;
   volatile unsigned int* const gpio_pddr_addr = (unsigned int*) (gpio_bank_offset[gpio_bank] + pddr_offset);
   *gpio_pddr_addr = (*gpio_pddr_addr | (mode << gpio)) & ~((!mode) << gpio);
+  return;
 }
 
 void set_gpio_state(PinState state, unsigned int gpio_bank, unsigned int gpio) {
@@ -25,6 +33,7 @@ void set_gpio_state(PinState state, unsigned int gpio_bank, unsigned int gpio) {
   const unsigned int pdor_offset = 0x40;
   volatile unsigned int* const gpio_pdor_addr = (unsigned int*) (gpio_bank_offset[gpio_bank] + pdor_offset);
   *gpio_pdor_addr = (*gpio_pdor_addr | (state << gpio)) & ~((!state) << gpio);
+  return;
 }
 
 unsigned int get_gpio_pin_data(unsigned int gpio_bank, unsigned int gpio) {
@@ -43,28 +52,27 @@ void set_gpio_pin_data(PinState state, unsigned int gpio_bank, unsigned int gpio
 }
 
 int main(void) {
-    set_gpio_state(LOW, 4, 1);
-	set_gpio_mode(OUTPUT, 4, 1);
- 	unsigned int pin_data = get_gpio_pin_data(4, 1);
-    if (pin_data == 1) {
-	   __asm volatile("bkpt");
-    }
+	volatile unsigned int* const addr = (unsigned int*) (0x40000000 + 0x220);
+	*addr |= (1U << 19) | (1U << 13);
 
- 	set_gpio_state(HIGH, 0, 27);
+ 	set_gpio_state(LOW, 0, 27);
 	set_gpio_mode(OUTPUT, 0, 27);
  	set_gpio_state(HIGH, 0, 10);
     set_gpio_mode(OUTPUT, 0, 10);
-	set_gpio_mode(OUTPUT, 1, 2);
  	set_gpio_state(HIGH, 1, 2);
+	set_gpio_mode(OUTPUT, 1, 2);
 
-	__asm volatile("ldr r0, =0x707");
- 	__asm volatile("bkpt");
-
- 	volatile int cnt = 0;
- 	volatile PinState state = HIGH;
+ 	volatile PinState state[] = { LOW, HIGH, HIGH };
+ 	volatile unsigned int cnt = 0;
   	while (TRUE) {
-   		cnt++;
-  		if ((cnt % 1000000) == 0) set_gpio_state(!state, 0, 27);
+		state[cnt] = !state[cnt];
+  		cnt = (cnt + 1) % 3;
+
+   	 	set_gpio_state(state[0], 0, 27);
+        set_gpio_state(state[1], 0, 10);
+        set_gpio_state(state[2], 1, 2);
+
+  		delay(1000);
  	}
 
   	return 0;
