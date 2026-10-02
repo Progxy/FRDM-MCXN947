@@ -10,7 +10,7 @@ extern uint32_t _sbss;
 extern uint32_t _ebss;
 extern uint32_t _image_length;
 
-extern int main(void);
+extern void main(void);
 void default_handler(void);
 void reset_handler(void);
 
@@ -229,7 +229,7 @@ const uint32_t vector_table[] = {
 
 __attribute__((section(".after_vectors.reset"), naked))
 void reset_handler(void) {
-    //__asm volatile("cpsid i");
+    __asm volatile("cpsid i");
 
  	// Load data and bss sections into RAM
     const unsigned int data_size = (uintptr_t)&_edata - (uintptr_t)&_sdata;
@@ -238,7 +238,7 @@ void reset_handler(void) {
     memcpy(&_sdata, &_sidata, data_size);
     memset(&_sbss, 0, bss_size);
 
-	//__asm volatile("cpsie i");
+	__asm volatile("cpsie i");
 
     main();
 
