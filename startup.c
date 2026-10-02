@@ -231,6 +231,7 @@ __attribute__((section(".after_vectors.reset"), naked))
 void reset_handler(void) {
     //__asm volatile("cpsid i");
 
+ 	// Load data and bss sections into RAM
     const unsigned int data_size = (uintptr_t)&_edata - (uintptr_t)&_sdata;
     const unsigned int bss_size  = (uintptr_t)&_ebss  - (uintptr_t)&_sbss;
 

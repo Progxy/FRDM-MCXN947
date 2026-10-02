@@ -12,16 +12,10 @@ typedef enum {
 } PinState;
 
 static const unsigned int gpio_bank_offset[6] = { 0x40096000, 0x40098000, 0x4009A000, 0x4009C000, 0x4009E000, 0x40040000 };
+static const unsigned int sys_con_addr = 0x40000000;
 
 void set_gpio_mode(PinMode mode, unsigned int gpio_bank, unsigned int gpio) {
   if (gpio_bank > 5 || gpio > 31) return;
-
-  if (gpio_bank == 0 && gpio == 10) {
- 	const unsigned int offset = 0xA8;
- 	volatile unsigned int* const pcr_addr = (unsigned int*) (0x40116000 + offset);
-    *pcr_addr &= ~(0xF00);
-  }
-
   const unsigned int pddr_offset = 0x54;
   volatile unsigned int* const gpio_pddr_addr = (unsigned int*) (gpio_bank_offset[gpio_bank] + pddr_offset);
   *gpio_pddr_addr = (*gpio_pddr_addr | (mode << gpio)) & ~((!mode) << gpio);
@@ -51,27 +45,52 @@ void set_gpio_pin_data(PinState state, unsigned int gpio_bank, unsigned int gpio
   return;
 }
 
+void enable_clk_ctrl(unsigned int clk_ctrl_idx, unsigned int idx) {
+  const unsigned int clk_ctrl_set_offsets[] = { 0x220, 0x224, 0x228, 0x22C };
+  volatile unsigned int* const addr = (unsigned int*) (sys_con_addr + clk_ctrl_set_offsets[clk_ctrl_idx]);
+  *addr |= 1U << idx;
+  return;
+}
+
+void set_enable_clk_ctrl(unsigned int clk_ctrl_idx, unsigned int value) {
+  const unsigned int clk_ctrl_set_offsets[] = { 0x220, 0x224, 0x228, 0x22C };
+  volatile unsigned int* const addr = (unsigned int*) (sys_con_addr + clk_ctrl_set_offsets[clk_ctrl_idx]);
+  *addr |= value;
+  return;
+}
+
+void disable_clk_ctrl(unsigned int clk_ctrl_idx, unsigned int idx) {
+  const unsigned int clk_ctrl_set_offsets[] = { 0x240, 0x244, 0x248, 0x24C };
+  volatile unsigned int* const addr = (unsigned int*) (sys_con_addr + clk_ctrl_set_offsets[clk_ctrl_idx]);
+  *addr |= 1U << idx;
+  return;
+}
+
+void set_disable_clk_ctrl(unsigned int clk_ctrl_idx, unsigned int value) {
+  const unsigned int clk_ctrl_set_offsets[] = { 0x240, 0x244, 0x248, 0x24C };
+  volatile unsigned int* const addr = (unsigned int*) (sys_con_addr + clk_ctrl_set_offsets[clk_ctrl_idx]);
+  *addr = value;
+  return;
+}
+
+void init_gpio(void) {
+	// Enable CLK ctrl for gpio bank 0..4
+	set_enable_clk_ctrl(0, (1U << 19) | (1U << 20) | (1U << 21) | (1U << 22) | (1U << 23));
+ 	return;
+}
+
+/// TODO: Cleanup the working code, using maybe a separate header like gpio.h
 int main(void) {
-	volatile unsigned int* const addr = (unsigned int*) (0x40000000 + 0x220);
-	*addr |= (1U << 19) | (1U << 13);
+    init_gpio();
 
- 	set_gpio_state(LOW, 0, 27);
 	set_gpio_mode(OUTPUT, 0, 27);
- 	set_gpio_state(HIGH, 0, 10);
-    set_gpio_mode(OUTPUT, 0, 10);
- 	set_gpio_state(HIGH, 1, 2);
-	set_gpio_mode(OUTPUT, 1, 2);
+    set_gpio_mode(OUTPUT, 4, 1);
 
- 	volatile PinState state[] = { LOW, HIGH, HIGH };
- 	volatile unsigned int cnt = 0;
+ 	volatile PinState state = LOW;
   	while (TRUE) {
-		state[cnt] = !state[cnt];
-  		cnt = (cnt + 1) % 3;
-
-   	 	set_gpio_state(state[0], 0, 27);
-        set_gpio_state(state[1], 0, 10);
-        set_gpio_state(state[2], 1, 2);
-
+		state = !state;
+   	 	set_gpio_state(state, 0, 27);
+  		set_gpio_state(!state, 4, 1);
   		delay(1000);
  	}
 
