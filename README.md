@@ -14,16 +14,18 @@ The demos are written to run directly on the **NXP MCXN947** without an operatin
 
 ## Build
 
-From the demo directory:
+From the main directory or from any of the demos' subfolders:
 
 ```bash
-make build/main.elf
+make build
 ```
 
-This produces:
+This produces the `.elf` image to flash into the board.
 
-```text
-build/main.elf
+Furthermore to build all the demos:
+
+```bash
+make demos
 ```
 
 ## Flash and Run
@@ -31,8 +33,10 @@ build/main.elf
 The simplest way to flash the binary is:
 
 ```bash
-LinkServer flash auto load build/main.elf
+make flash
 ```
+
+Either from the main directory or from any of the demos' subfolders.
 
 Alternatively, start a LinkServer GDB server:
 
@@ -73,11 +77,8 @@ Each demo is kept small and self-contained, focusing on a particular **MCXN947 p
 .
 ├── build/
 ├── include/
+├── demos/
 ├── Makefile
-├── linker.ld
-├── startup.c
 ├── main.c
 └── README.md
 ```
-
-The exact structure may vary between demos.
