@@ -7,9 +7,10 @@ MEMORY {
 
 # Stack at the end of RAM
 _stack = ORIGIN(RAM) + LENGTH(RAM);
+_stack_size = 0x4000;
+_block_size = 64;
 
 SECTIONS {
-    _image_start = .;
     .text : ALIGN(4) {
         FILL(0xff)
 		KEEP(*(.image_header))
@@ -30,7 +31,6 @@ SECTIONS {
     } > RAM AT > FLASH
 
     _sidata = LOADADDR(.data);
-    _image_end = .;
 
     .bss : ALIGN(4) {
         _sbss = .;
@@ -40,11 +40,14 @@ SECTIONS {
         _ebss = .;
     } > RAM
 
+	. = ALIGN(_block_size);
+	_ram_start = .;
+	_ram_end = ORIGIN(RAM) + LENGTH(RAM) - _stack_size;
+	_image_length = SIZEOF(.text) + SIZEOF(.data) + SIZEOF(.bss);
+
     /DISCARD/ : {
         *(.note*)
         *(.comment*)
         *(.eh_frame*)
     }
-
-	_image_length = SIZEOF(.text) + SIZEOF(.data) + SIZEOF(.bss);
 }

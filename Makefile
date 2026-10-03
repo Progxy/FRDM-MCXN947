@@ -1,4 +1,4 @@
-CFLAGS      := -mcpu=cortex-m33 -mthumb -mfloat-abi=soft -ffreestanding -fno-builtin -Wall -Wextra -Werror -Og -ggdb -I./include
+CFLAGS      := -mcpu=cortex-m33 -mthumb -mfloat-abi=soft -ffreestanding -fno-builtin -Wall -Wextra -Werror -Wno-unused-variable -Og -ggdb -I./include
 LDFLAGS     := -mcpu=cortex-m33 -mthumb -mfloat-abi=soft -T ./include/linker.ld -nostdlib -Wl,--gc-sections
 LINK_SERVER := /Applications/LinkServer_26.9.130/LinkServer
 DEMO_DIRS   := $(wildcard demos/*)

@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <utils.h>
+#include <usb.h>
 
 void main(void) {
 	volatile unsigned int cnt = 0;

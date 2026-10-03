@@ -20,6 +20,7 @@ UNUSED_FUNCTION static void memset(void* dest, unsigned char value, int size) {
   return;
 }
 
+// TODO: Substitute it with a timer callback
 UNUSED_FUNCTION static void delay(unsigned int ms) {
   for (unsigned int j = 0; j < ms; ++j) {
 	  for (unsigned int i = 0; i < 10000; ++i) {
