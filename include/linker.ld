@@ -8,7 +8,6 @@ MEMORY {
 # Stack at the end of RAM
 _stack = ORIGIN(RAM) + LENGTH(RAM);
 _stack_size = 0x4000;
-_block_size = 64;
 
 SECTIONS {
     .text : ALIGN(4) {
@@ -40,7 +39,7 @@ SECTIONS {
         _ebss = .;
     } > RAM
 
-	. = ALIGN(_block_size);
+	. = ALIGN(4096);
 	_ram_start = .;
 	_ram_end = ORIGIN(RAM) + LENGTH(RAM) - _stack_size;
 	_image_length = SIZEOF(.text) + SIZEOF(.data) + SIZEOF(.bss);

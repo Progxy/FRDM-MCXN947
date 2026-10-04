@@ -8,12 +8,10 @@
 //       allocators on smaller chunks of memory (Matrioska of allocators).
 //       But for that should revise the block_hdr_t structure (as it consumes a block).
 
-extern uint32_t _ram_start;
-extern uint32_t _ram_end;
-
-// NOTE: before modifying this value should also modify _block_size in the linker.ld
 #define BLOCK_SIZE 64
 
+extern uint32_t _ram_start;
+extern uint32_t _ram_end;
 static const void* mem_base = (void*) (&_ram_start);
 static const void* mem_end  = (void*) (&_ram_end);
 

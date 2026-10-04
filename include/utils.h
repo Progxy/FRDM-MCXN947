@@ -20,14 +20,18 @@ UNUSED_FUNCTION static void memset(void* dest, unsigned char value, int size) {
   return;
 }
 
-// TODO: Substitute it with a timer callback
-UNUSED_FUNCTION static void delay(unsigned int ms) {
-  for (unsigned int j = 0; j < ms; ++j) {
-	  for (unsigned int i = 0; i < 10000; ++i) {
-	 	__asm volatile("nop");
-	  }
+// TODO: Substitute it with a timer callback and maybe add a delay in microseconds function
+UNUSED_FUNCTION static void delay_ms(unsigned int ms) {
+	for (unsigned int j = 0; j < ms; ++j) {
+		for (unsigned int i = 0; i < 10000; ++i) {
+			__asm volatile("nop");
+		}
 	}
-  return;
+	return;
+}
+
+UNUSED_FUNCTION static unsigned int mask_lower_bits(unsigned int val, const unsigned int bits) {
+	return val & ~((1U << bits) - 1);
 }
 
 #endif //_UTILS_H

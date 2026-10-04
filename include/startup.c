@@ -14,15 +14,16 @@ extern void main(void);
 void default_handler(void);
 void reset_handler(void);
 
-void NMI_Handler(void)        __attribute__((weak, alias("default_handler"), naked, noreturn));
-void HardFault_Handler(void)  __attribute__((weak, alias("default_handler"), naked, noreturn));
-void MemManage_Handler(void)  __attribute__((weak, alias("default_handler"), naked, noreturn));
-void BusFault_Handler(void)   __attribute__((weak, alias("default_handler"), naked, noreturn));
-void UsageFault_Handler(void) __attribute__((weak, alias("default_handler"), naked, noreturn));
-void SVCall_Handler(void)     __attribute__((weak, alias("default_handler"), naked, noreturn));
-void DebugMon_Handler(void)   __attribute__((weak, alias("default_handler"), naked, noreturn));
-void PendSV_Handler(void)     __attribute__((weak, alias("default_handler"), naked, noreturn));
-void SysTick_Handler(void)    __attribute__((weak, alias("default_handler"), naked, noreturn));
+void nmi_handler(void)           __attribute__((weak, alias("default_handler"), naked, noreturn));
+void hard_fault_handler(void)    __attribute__((weak, alias("default_handler"), naked, noreturn));
+void mem_manage_handler(void)    __attribute__((weak, alias("default_handler"), naked, noreturn));
+void bus_fault_handler(void)     __attribute__((weak, alias("default_handler"), naked, noreturn));
+void usage_fault_handler(void)   __attribute__((weak, alias("default_handler"), naked, noreturn));
+void sv_call_handler(void)       __attribute__((weak, alias("default_handler"), naked, noreturn));
+void debug_monitor_handler(void) __attribute__((weak, alias("default_handler"), naked, noreturn));
+void pend_sv_handler(void)       __attribute__((weak, alias("default_handler"), naked, noreturn));
+void sys_tick_handler(void)      __attribute__((weak, alias("default_handler"), naked, noreturn));
+void usbhs_dcd_handler(void)     __attribute__((weak, alias("default_handler"), naked, noreturn));
 
 extern const uint32_t vector_table[];
 
@@ -32,11 +33,11 @@ const uint32_t vector_table[] = {
     (uint32_t) reset_handler, // Initial PC
 
  	// First 6 Vector Table Entries
-    (uint32_t) NMI_Handler,
-    (uint32_t) HardFault_Handler,
-    (uint32_t) MemManage_Handler,
-    (uint32_t) BusFault_Handler,
-    (uint32_t) UsageFault_Handler,
+    (uint32_t) nmi_handler,
+    (uint32_t) hard_fault_handler,
+    (uint32_t) mem_manage_handler,
+    (uint32_t) bus_fault_handler,
+    (uint32_t) usage_fault_handler,
     0,
 
  	(uint32_t) &_image_length,
@@ -51,13 +52,13 @@ const uint32_t vector_table[] = {
 
  	// Remaining Vector Table Entries
     0,
-    (uint32_t) SVCall_Handler,
-    (uint32_t) DebugMon_Handler,
+    (uint32_t) sv_call_handler,
+    (uint32_t) debug_monitor_handler,
     0,
-    (uint32_t) PendSV_Handler,
-    (uint32_t) SysTick_Handler,
+    (uint32_t) pend_sv_handler,
+    (uint32_t) sys_tick_handler,
 
-    /* External interrupts */
+    /* External interrupts 16 - 171 */
     (uint32_t) default_handler,
     (uint32_t) default_handler,
     (uint32_t) default_handler,
@@ -124,7 +125,7 @@ const uint32_t vector_table[] = {
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
-	(uint32_t) default_handler,
+	(uint32_t) usbhs_dcd_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
@@ -248,5 +249,5 @@ void reset_handler(void) {
 __attribute__((section(".after_vectors.default_handler"), naked, noreturn))
 void default_handler(void) {
     __asm volatile("bkpt");
-    while (TRUE);
+    __asm__ volatile("bx lr");
 }
