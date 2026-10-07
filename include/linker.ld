@@ -2,7 +2,7 @@ ENTRY(reset_handler)
 
 MEMORY {
     FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 0x200000
-	RAM (rwx)  : ORIGIN = 0x20000000, LENGTH = 0x060000
+	RAM  (rwx) : ORIGIN = 0x20000000, LENGTH = 0x060000
 }
 
 # Stack at the end of RAM
