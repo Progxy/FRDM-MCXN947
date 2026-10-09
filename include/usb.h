@@ -17,7 +17,7 @@ typedef struct {
 			uint16_t max_packet_len: 11;
 			const uint8_t rsv: 2;
 			const uint8_t zlt: 1;
-			const uint8_t mult: 2;
+			uint8_t mult: 2;
 
 			uint32_t current_dtd_ptr;
 			union {
@@ -234,6 +234,15 @@ typedef struct {
 } __attribute__((packed)) endpt_prime_t;
 
 typedef struct {
+	const uint8_t den: 5;
+	const uint8_t rsv: 2;
+	const uint8_t dc: 1;
+	const uint8_t hc: 1;
+	const uint8_t rsv1: 7;
+	const uint16_t rsv2;
+} __attribute__((packed)) usb_dcc_params_t;
+
+typedef struct {
 	uint8_t cm: 2;
 	uint8_t es: 1;
 	uint8_t slom: 1;
@@ -252,12 +261,13 @@ static_assert(sizeof(endpt_stat_t) == 4,                    "Size must be 4 byte
 static_assert(sizeof(endpt_prime_t) == 4,                   "Size must be 4 bytes");
 static_assert(sizeof(usb_portsc1_t) == 4,                   "Size must be 4 bytes");
 static_assert(sizeof(usb_endptctl_t) == 4,                  "Size must be 4 bytes");
+static_assert(sizeof(usb_dcc_params_t) == 4,                "Size must be 4 bytes");
 static_assert(sizeof(usb_int_enable_t) == 4,                "Size must be 4 bytes");
 static_assert(sizeof(usb_endptlistaddr_t) == 4,             "Size must be 4 bytes");
 static_assert(sizeof(endpoint_queue_head_t) == 64,          "Size must be 64 bytes");
 static_assert(sizeof(endpoint_transfer_descriptor_t) == 32, "Size must be 32 bytes");
 
-const unsigned int usb_addr =  0x4010B000;
+const unsigned int usb_addr = 0x4010B000;
 const unsigned int usb_cmd_offset = 0x140;
 const unsigned int usb_status_offset = 0x144;
 const unsigned int usb_int_enable_offset = 0x148;
@@ -268,9 +278,13 @@ const unsigned int endpt_stat_offset = 0x1B8;
 const unsigned int endpt_complete_offset = 0x1BC;
 const unsigned int endpt_prime_offset = 0x1B0;
 const unsigned int endpt_flust_offset = 0x1B4;
+const unsigned int usb_dcc_params_offset = 0x124;
 
-endpoint_transfer_descriptor_t* epts_tdt_heads[32] = {0};
+// #define MAX_PACKET_SIZE 512
+// #define MAX_ENDPTS 32
+//endpoint_queue_head_t device_queue_heads[MAX_ENDPTS] = {0};
 endpoint_queue_head_t* device_queue_heads = NULL;
+endpoint_transfer_descriptor_t* endpts_tdt_heads[32] = {0};
 
 int init_transfer_descriptor(endpoint_transfer_descriptor_t* tdt, const uint8_t* buf, const uint16_t total_bytes) {
 	if (buf == NULL) return -1;
@@ -281,8 +295,8 @@ int init_transfer_descriptor(endpoint_transfer_descriptor_t* tdt, const uint8_t*
 	//           to device controller being finished with this dTD.
 	tdt -> ioc = 1;
 	tdt -> status = 1U << ACTIVE;
-	tdt -> buffer_ptr0    = mask_lower_bits((uint32_t) buf, 12);
-	tdt -> current_offset = mask_upper_bits((uint32_t) buf, 12);
+	tdt -> buffer_ptr0    = mask_lower_bits((uint32_t) buf, 11);
+	tdt -> current_offset = mask_upper_bits((uint32_t) buf, 11);
 	tdt -> buffer_ptr1 = tdt -> buffer_ptr0 + 1;
 	tdt -> buffer_ptr2 = tdt -> buffer_ptr1 + 1;
 	tdt -> buffer_ptr3 = tdt -> buffer_ptr2 + 1;
@@ -298,21 +312,21 @@ void init_device_queue_head(endpoint_queue_head_t* dqh) {
 }
 
 void add_dtd_to_dqh(endpoint_transfer_descriptor_t* tdt, endpoint_queue_head_t* dqh) {
-	const unsigned int ept_idx = ((unsigned int) dqh >> 6) & 0x1F;
+	const unsigned int endpt_idx = ((unsigned int) dqh >> 6) & 0x1F;
 	volatile endpt_prime_t* endpt_prime = (endpt_prime_t*) (usb_addr + endpt_prime_offset);
 	volatile endpt_stat_t* endpt_stat = (endpt_stat_t*) (usb_addr + endpt_stat_offset);
 
-	if (epts_tdt_heads[ept_idx] == NULL) {
+	if (endpts_tdt_heads[endpt_idx] == NULL) {
 		dqh -> next_ptr = mask_lower_bits((uint32_t) tdt, 5);
-		epts_tdt_heads[ept_idx] = tdt;
+		endpts_tdt_heads[endpt_idx] = tdt;
 		dqh -> status &= ~((1U << ACTIVE) | (1U << HALTED));
-		if (ept_idx & 0x1) endpt_prime -> perb |= 1U << (ept_idx >> 1);
-		else endpt_prime -> petb = 1U << (ept_idx >> 1);
+		if (endpt_idx & 0x1) endpt_prime -> perb |= 1U << (endpt_idx >> 1);
+		else endpt_prime -> petb = 1U << (endpt_idx >> 1);
 
-		if (ept_idx & 0x1) {
-			while (!((endpt_stat -> erbr >> (ept_idx >> 1)) & 0x01)) delay_ms(5);
+		if (endpt_idx & 0x1) {
+			while (!((endpt_stat -> erbr >> (endpt_idx >> 1)) & 0x01)) delay_ms(5);
 		} else {
-			while (!((endpt_stat -> etbr >> (ept_idx >> 1)) & 0x01)) delay_ms(5);
+			while (!((endpt_stat -> etbr >> (endpt_idx >> 1)) & 0x01)) delay_ms(5);
 		}
 
 		return;
@@ -320,22 +334,22 @@ void add_dtd_to_dqh(endpoint_transfer_descriptor_t* tdt, endpoint_queue_head_t* 
 
 	uint8_t status = 0;
 	do {
-		endpoint_transfer_descriptor_t* current_tdt = epts_tdt_heads[ept_idx];
+		endpoint_transfer_descriptor_t* current_tdt = endpts_tdt_heads[endpt_idx];
 		while (current_tdt -> next_link_ptr != 0) current_tdt = (endpoint_transfer_descriptor_t*) current_tdt -> next_ptr;
 		tdt -> prev_link_ptr = (unsigned int) current_tdt;
 		current_tdt -> next_ptr = mask_lower_bits((uint32_t) tdt, 5);
 
 		uint8_t is_primed = 0;
-		if (ept_idx & 0x1) is_primed = endpt_prime -> perb |= 1U << (ept_idx >> 1);
-		else is_primed = endpt_prime -> petb = 1U << (ept_idx >> 1);
+		if (endpt_idx & 0x1) is_primed = endpt_prime -> perb |= 1U << (endpt_idx >> 1);
+		else is_primed = endpt_prime -> petb = 1U << (endpt_idx >> 1);
 
 		if (is_primed) return;
 
 		volatile usb_cmd_t* usb_cmd = (usb_cmd_t*) (usb_addr + usb_cmd_offset);
 		do {
 			usb_cmd -> atdtw = 1;
-			if (ept_idx & 0x1) status = (endpt_stat -> erbr >> (ept_idx >> 1)) & 0x01;
-			else status = (endpt_stat -> etbr >> (ept_idx >> 1)) & 0x01;
+			if (endpt_idx & 0x1) status = (endpt_stat -> erbr >> (endpt_idx >> 1)) & 0x01;
+			else status = (endpt_stat -> etbr >> (endpt_idx >> 1)) & 0x01;
 		} while (!usb_cmd -> atdtw);
 
 		usb_cmd -> atdtw = 0;
@@ -344,23 +358,28 @@ void add_dtd_to_dqh(endpoint_transfer_descriptor_t* tdt, endpoint_queue_head_t* 
 	return;
 }
 
-void init_endpoint(unsigned int endpt_idx, USBType usb_type) {
+void init_endpoint(const uint8_t endpt_idx, const USBType usb_type, const uint8_t mult) {
 	if (endpt_idx > 7) return;
+
+	if (usb_type == ISOCHRONOUS) (device_queue_heads + endpt_idx) -> mult = mult;
+
 	volatile usb_endptctl_t* endptctl = (usb_endptctl_t*) (usb_endptctl_offset + 4 * endpt_idx);
-
 	endptctl -> rxs = 0;
-	endptctl -> rxd = 0;
-	endptctl -> rxt = usb_type;
-	endptctl -> rxi = 0;
-	endptctl -> rxr = 1;
-	endptctl -> rxe = 1;
-
 	endptctl -> txs = 0;
-	endptctl -> txd = 0;
-	endptctl -> txt = usb_type;
-	endptctl -> txi = 0;
-	endptctl -> txr = 1;
-	endptctl -> txe = 1;
+
+	if (endpt_idx > 0) {
+		endptctl -> rxd = 0;
+		endptctl -> rxt = usb_type;
+		endptctl -> rxi = 0;
+		endptctl -> rxr = 1;
+		endptctl -> rxe = 1;
+
+		endptctl -> txd = 0;
+		endptctl -> txt = usb_type;
+		endptctl -> txi = 0;
+		endptctl -> txr = 1;
+		endptctl -> txe = 1;
+	}
 
 	return;
 }
@@ -377,6 +396,7 @@ int reset_usb_controller(const uint8_t endpts_cnt) {
 
 	volatile usb_mode_t* usb_mode = (usb_mode_t*) (usb_addr + usb_mode_offset);
 	usb_mode -> cm = DEVICE;
+	usb_mode -> slom = 1;
 
 	device_queue_heads = calloc(sizeof(endpoint_queue_head_t), endpts_cnt);
 	if (device_queue_heads == NULL) return -1;
@@ -419,17 +439,164 @@ int handle_bus_reset(void) {
 	return 0;
 }
 
-// TODO: Theoretically should ensure that the MCU is running in active mode,
-// as we are currently assuming that there is no code that alters the MCU
-// activity state (supply state)
-// TODO: Missing support for CONTROL and ISOCHRONOUS types
-int init_usb_device(void) {
+int alloc_transfer_descriptor(const uint8_t endpt_idx) {
+	if (endpt_idx > 7) return -1;
+
+	endpoint_transfer_descriptor_t* tdt = calloc(sizeof(endpoint_transfer_descriptor_t), 1);
+	if (tdt == NULL) return -1;
+
+	const uint8_t* buf = calloc(1, 512);
+	if (buf == NULL) {
+		free(tdt);
+		return -1;
+	}
+
+	int err = init_transfer_descriptor(tdt, buf, 512);
+	if (err) {
+		free(tdt);
+		free((void*) buf);
+		return -1;
+	}
+
+	add_dtd_to_dqh(tdt, device_queue_heads + endpt_idx);
+
+	return 0;
+}
+
+void dealloc_transfer_descriptor(endpoint_transfer_descriptor_t* tdt) {
+	uint8_t* buf = (uint8_t*) ((tdt -> buffer_ptr0 << 11) + tdt -> current_offset);
+	free(buf);
+	free(tdt);
+	return;
+}
+
+void handle_setup_packet(void) {
+	// 	After receiving an interrupt and inspecting UBS_nENDSETUPSTAT to determine that a setup packet was received on a
+	// 	particular pipe:
+	// 	1. Write 1 to clear corresponding bit UBS_nENDSETUPSTAT.
+	// 	2. Write 1 to Setup Tripwire (SUTW) in USB_nUSBCMD register.
+	// 	3. Duplicate contents of dQH.SetupBuffer into local software byte array.
+	// 	4. Read Setup TripWire (SUTW) in USB_nUSBCMD register. (if set - continue; if cleared - go to 2)
+	// 	5. Write 0 to clear Setup Tripwire (SUTW) in USB nUSBCMD register.
+	// 	6. Process setup packet using local software byte array copy and execute status/handshake phases.
+	//
+	// 	NOTE: After receiving a new setup packet the status and/or handshake phases may still be pending from a previous control
+	// 	sequence. These should be flushed & deallocated before linking a new status and/or handshake dTD for the most
+	// 	recent setup packet.
+	//
+	// Upon receiving notification of the setup packet, the DCD should handle the setup transfer as demonstrated here:
+	// 1. Copy setup buffer contents from dQH - RX to software buffer.
+	// 2. Acknowledge setup backup by writing a "1" to the corresponding bit in ENDPTSETUPSTAT.
+
+	// NOTE:
+	// • The acknowledge must occur before continuing to process the setup packet.
+	// • After the acknowledge has occurred, the DCD must not attempt to access the setup buffer in the dQH - RX. Only the local software copy should be examined.
+
+	// 3. Check for pending data or status dTD's from previous control transfers and flush if any exist as discussed in section Flushing/De-priming an endpoint.
+	// 4. Decode setup packet and prepare data phase [optional] and status phase transfer as required by the USB Chapter 9 or
+	// application specific protocol.
+
+	// NOTE: It is possible for the device controller to receive setup packets before previous control transfers complete. Existing
+	// control packets in progress must be flushed and the new control packet completed.
+
+	return;
+}
+
+void flush_endpoint(const unsigned int endpt_idx) {
+	(void)endpt_idx;
+	// There may also be application specific requirements to stop transfers in progress. The following procedure can be used by the
+	// DCD to stop a transfer in progress:
+	// 1. Write a '1' to the corresponding bit(s) in ENDPTFLUSH.
+	// 2. Wait until all bits in ENDPTFLUSH are '0'.
+	// • Software note: this operation may take a large amount of time depending on the USB bus activity. It is not desirable
+	// to have this wait loop within an interrupt service routine.
+	// 3. Read ENDPTSTAT register to ensure that for all endpoints commanded to be flushed, that the corresponding bits are
+	// now '0'. If the corresponding bits are '1' after step #2 has finished, then the flush failed as described in the following:
+	// • Explanation: In very rare cases, a packet is in progress to the particular endpoint when commanded flush using
+	// ENDPTFLUSH register. A safeguard is in place to refuse the flush to ensure that the packet in progress completes
+	// successfully. The DCD may need to repeatedly flush any endpoints that fail to flush be repeating steps 1-3 until
+	// each endpoint is successfully flushed.
+	return;
+}
+
+void handle_data_packet(void) {
+	// Prime the data phase's trasfer descriptor
+	// Ensure that it has been successfully primed, and that no setup packet has arrived since
+	// Otherwise, if failed, free it and let the NVIC trigger the interrupt for the incoming/arrived setup to call the setup packet handle_bus_reset
+	// Should a setup arrive after the data stage is primed, the device controller will automatically clear the prime status
+	// (USB_nENDPTSTAT) to enforce data coherency with the setup packet.
+	return;
+}
+
+void handle_status_packet(void) {
+	// Similar to the data phase, the DCD must create a transfer descriptor
+	// (with byte length equal zero) and prime the endpoint for the status phase.
+	// The DCD must also perform the same checks of the USB.ENDPTSETUPSTAT as described above in the data phase.
+	return;
+}
+
+void iso_sync(void) {
+	// When it is necessary to synchronize an isochronous data pipe to the host, the (micro) frame number (USB_UOG_FRINDEX
+	// register) can be used as a marker.
+	// To cause a packet transfer to occur at a specific (micro) frame number [N], the DCD should interrupt on SOF during frame N-1.
+	// When the USB_UOG_FRINDEX=N-1, the DCD must write the prime bit. The device controller will prime the isochronous endpoint
+	// in (micro) frame N-1 so that the device controller will execute delivery during (micro) frame N.
+	// NOTE:
+	// Priming an endpoint towards the end of (micro) frame N-1 will not guarantee delivery in (micro) frame N. The
+	// delivery may actually occur in (micro) frame N+1 if device controller does not have enough time to complete the
+	// prime before the SOF for packet N is received.
+	return;
+}
+
+void handle_iso_response(void) {
+	// The transaction error bit set in the status field indicates a fulfillment error condition. When a fulfillment error occurs, the frame after
+	// the transfer failed to complete wholly, the device controller will force retire the ISO-dTD and move to the next ISO-dTD.
+	// It is important to note that fulfillment errors are only caused due to partially completed packets. If no activity occurs to a primed
+	// ISO-dTD, the transaction will stay primed indefinitely. This means it is up to software discard transmit ISO-dTDs that pile up from
+	// a failure of the host to move the data.
+	// Finally, the last difference with ISO packets is in the data level error handling. When a CRC error occurs on a received packet,
+	// the packet is not retried similar to bulk and control endpoints. Instead, the CRC is noted by setting the Transaction Error bit and
+	// the data is stored as usual for the application software to sort out.
+	// • TX Packet Retired
+	// — MULT counter reaches zero.
+	// — Fulfillment Error [Transaction Error bit is set]
+	// ◦ # Packets Occurred > 0 AND # Packets Occurred < MULT
+	// NOTE:
+	// For TX-ISO, MULT Counter can be loaded with a lesser value in the dTD Multiplier Override field in hardware
+	// versions 2.3 and later. If the Multiplier Override is zero, the MULT Counter is initialized to the Multiplier in the QH.
+	// • RX Packet Retired:
+	// — MULT counter reaches zero.
+	// — Non-MDATA Data PID is received**
+	// ◦ ** Exit criteria only valid in hardware version 2.3 or later. Previous to hardware version 2.3, any PID sequence
+	// that did not match the MULT field exactly would be flagged as a transaction error due to PID mismatch or
+	// fulfillment error.
+	// — Overflow Error:
+	// ◦ Packet received is > maximum packet length. [Buffer Error bit is set]
+	// ◦ Packet received exceeds total bytes allocated in dTD. [Buffer Error bit is set]
+	// — Fulfillment Error [Transaction Error bit is set]
+	// ◦ # Packets Occurred > 0 AND # Packets Occurred < MULT
+	// — CRC Error [Transaction Error bit is set]
+	// NOTE:
+	// For ISO, when a dTD is retired, the next dTD is primed for the next frame. For continuous (micro)frame to
+	// (micro)frame operation the DCD should ensure that the dTD linked-list is out ahead of the device controller by at
+	// least two (micro)frames.
+	return;
+}
+
+int init_usb_device(const uint8_t endpts_cnt, const USBType* usb_types, const uint8_t* mults) {
 	set_enable_clk_ctrl(2, (1U << 16) | (1U << 17));
+	// NOTE: We currently do not really support changing voltage level and
+	//       operational mode, therefore the following could be a bit unnecessary
 	int err = change_dcdc_voltage_lvl(0x02);
 	if (err) return err;
 
-	const uint8_t endpts_cnt = 2; //4;
-	for (unsigned int i = 0; i < USB_MAX_HW_RESETS; ++i) {
+	volatile usb_dcc_params_t* usb_dcc_params = (usb_dcc_params_t*) (usb_addr + usb_dcc_params_offset);
+	const uint8_t max_endpts = (usb_dcc_params -> den) << 1;
+	if (endpts_cnt > max_endpts) return -1;
+
+	for (unsigned int i = 0; (endpts_cnt > 2) && (i <= USB_MAX_HW_RESETS); ++i) {
+		if (i == USB_MAX_HW_RESETS) return -1;
+
 		err = reset_usb_controller(endpts_cnt);
 		if (err) return err;
 
@@ -437,28 +604,16 @@ int init_usb_device(void) {
 		if (err == 0) break;
 	}
 
-	init_endpoint(0, CONTROL);
-	//init_endpoint(1, BULK);
-
-	endpoint_transfer_descriptor_t* tdts = calloc(sizeof(endpoint_transfer_descriptor_t), endpts_cnt);
-	if (tdts == NULL) {
-		free(device_queue_heads);
-		return -1;
-	}
-
-	const uint8_t* buf = calloc(1, 512 * endpts_cnt);
-	if (buf == NULL) {
-		free(device_queue_heads);
-		free(tdts);
-		return -1;
-	}
-
-	for (unsigned int i = 0; i < endpts_cnt; ++i) {
-		init_transfer_descriptor(tdts, buf + 512 * i, 512);
-		add_dtd_to_dqh(tdts + i, device_queue_heads + i);
-	}
+	init_endpoint(0, CONTROL, 0);
+	for (int i = 0; i < ((int) endpts_cnt - 2); ++i) init_endpoint(i, usb_types[i], mults[i]);
 
 	return 0;
+}
+
+void deinit_usb_device(void) {
+	// Flush endpoints and deallocate any linked list
+	free(device_queue_heads);
+	return;
 }
 
 __attribute__((section(".after_vectors.usbhs_dcd_handler"), naked, noreturn))
