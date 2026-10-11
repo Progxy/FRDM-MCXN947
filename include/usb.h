@@ -285,8 +285,9 @@ const unsigned int endpt_flust_offset = 0x1B4;
 const unsigned int usb_dcc_params_offset = 0x124;
 const unsigned int usb_portsc1_offset = 0x184;
 
-// #define MAX_PACKET_SIZE 512
-// #define MAX_ENDPTS 32
+#define MAX_PACKET_SIZE 512
+#define MAX_ENDPTS 32
+
 //endpoint_queue_head_t device_queue_heads[MAX_ENDPTS] = {0};
 endpoint_queue_head_t* device_queue_heads = NULL;
 endpoint_transfer_descriptor_t* endpts_tdt_heads[32] = {0};
@@ -311,7 +312,7 @@ int init_transfer_descriptor(endpoint_transfer_descriptor_t* tdt, const uint8_t*
 }
 
 void init_device_queue_head(endpoint_queue_head_t* dqh) {
-	dqh -> max_packet_len = 512;
+	dqh -> max_packet_len = MAX_PACKET_SIZE;
 	dqh -> t = 1;
 	return;
 }
@@ -398,11 +399,10 @@ int reset_usb_controller(const uint8_t endpts_cnt) {
 	/// either find another way or just add a condition for the other cases
 	/// where the uC has already initialized the USB controller (but will we
 	/// ever enable/disable/reenable the USB controller?)
-	// usb_cmd -> rs = 0;
-	// while (!usb_status -> hch) delay_us(1);
 
-	//usb_cmd -> rst = 1;
-	//while (usb_cmd -> rst) delay_us(1);
+	usb_cmd -> rs = 0;
+	// while (!usb_status -> hch) delay_us(1);
+	usb_cmd -> rst = 1;
 
 	volatile usb_mode_t* usb_mode = (usb_mode_t*) (usb_addr + usb_mode_offset);
 	usb_mode -> cm = DEVICE;
@@ -422,6 +422,8 @@ int reset_usb_controller(const uint8_t endpts_cnt) {
 	usb_int_enable -> pce = 1;
 	usb_int_enable -> ure = 1;
 	usb_int_enable -> sle = 1;
+
+	while (usb_cmd -> rst) delay_us(1);
 
 	usb_cmd -> rs = 1;
 	while (usb_status -> hch) delay_us(1);
@@ -596,9 +598,7 @@ void handle_iso_response(void) {
 
 #define init_default_usb_device() init_usb_device(0, NULL, NULL)
 int init_usb_device(const uint8_t endpts_cnt, const USBType* usb_types, const uint8_t* mults) {
-	// NOTE: We currently do not really support changing voltage level and
-	//       operational mode, therefore the following could be a bit unnecessary
-	int err = change_dcdc_voltage_lvl(0x02); // TODO: If doesn't work should set to lvl3 ()
+	int err = change_dcdc_voltage_lvl(0x02);
 	if (err) return err;
 
 	set_enable_clk_ctrl(2, (1U << 16) | (1U << 17));
@@ -606,9 +606,7 @@ int init_usb_device(const uint8_t endpts_cnt, const USBType* usb_types, const ui
 
 	enable_usb_phy();
 
-	volatile usb_dcc_params_t* usb_dcc_params = (usb_dcc_params_t*) (usb_addr + usb_dcc_params_offset);
-	const uint8_t max_endpts = (usb_dcc_params -> den) << 1;
-	if (endpts_cnt > max_endpts) return -1;
+	if (endpts_cnt > MAX_ENDPTS) return -1;
 
 	for (unsigned int i = 0; i <= USB_MAX_HW_RESETS; ++i) {
 		if (i == USB_MAX_HW_RESETS) return -1;
