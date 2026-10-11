@@ -14,8 +14,8 @@ extern void main(void);
 void default_handler(void);
 void reset_handler(void);
 
+void hard_fault_handler(void);
 void nmi_handler(void)           __attribute__((weak, alias("default_handler"), naked, noreturn));
-void hard_fault_handler(void)    __attribute__((weak, alias("default_handler"), naked, noreturn));
 void mem_manage_handler(void)    __attribute__((weak, alias("default_handler"), naked, noreturn));
 void bus_fault_handler(void)     __attribute__((weak, alias("default_handler"), naked, noreturn));
 void usage_fault_handler(void)   __attribute__((weak, alias("default_handler"), naked, noreturn));
@@ -249,5 +249,10 @@ void reset_handler(void) {
 __attribute__((section(".after_vectors.default_handler"), naked, noreturn))
 void default_handler(void) {
     __asm volatile("bkpt");
+    __asm__ volatile("bx lr");
+}
+
+__attribute__((section(".after_vectors.hard_fault_handler"), naked, noreturn))
+void hard_fault_handler(void) {
     __asm__ volatile("bx lr");
 }

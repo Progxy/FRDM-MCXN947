@@ -22,5 +22,8 @@ $(DEMO_DIRS): build/startup.o
 flash: build/main.elf
 	$(LINK_SERVER) flash auto load $<
 
+debug: build/main.elf
+	arm-none-eabi-gdb -ex "target extended-remote localhost:3333" $<
+
 build/main.elf: main.c build/startup.o
 	arm-none-eabi-gcc $(CFLAGS) $(LDFLAGS) $^ -o $@

@@ -57,6 +57,7 @@ void insert_next_block(block_hdr_t* first_block, block_hdr_t* last_block) {
 void* calloc(unsigned int size, unsigned int nmemb) {
 	const unsigned int tot_size = size * nmemb;
 	const unsigned int block_size = tot_size / BLOCK_SIZE + 1 - (tot_size % BLOCK_SIZE == 0);
+	if (block_size == 0) return NULL;
 
 	block_hdr_t* curr_block = (block_hdr_t*) mem_base;
 	while (TRUE) {
@@ -80,7 +81,9 @@ void* extend(void* ptr, unsigned int size) {
 	block_hdr_t* next_block = block -> next_block;
 	const unsigned int old_block_size = block -> block_size;
 	const unsigned int block_size = size / BLOCK_SIZE + 1 - (size % BLOCK_SIZE == 0);
-	if (block -> block_size >= block_size) {
+
+	if (block_size == 0) return NULL;
+	else if (block -> block_size >= block_size) {
 		block -> block_size = block_size;
 		insert_next_block(block, next_block);
 		return ptr;

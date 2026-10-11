@@ -6,6 +6,8 @@
 #define TRUE 1
 #define FALSE 0
 #define UNUSED_FUNCTION __attribute__((unused))
+#define MIN(a, b) ((a) <= (b) ? (a) : (b))
+#define MAX(a, b) ((a) >= (b) ? (a) : (b))
 
 UNUSED_FUNCTION static void memcpy(void* dest, void* src, int size) {
   if (dest == NULL || src == NULL) return;
@@ -25,9 +27,14 @@ UNUSED_FUNCTION static void memset(void* dest, uint8_t value, int size) {
 // TODO: Substitute it with a timer callback and maybe add a delay in microseconds function
 UNUSED_FUNCTION static void delay_ms(unsigned int ms) {
 	for (unsigned int j = 0; j < ms; ++j) {
-		for (unsigned int i = 0; i < 10000; ++i) {
-			__asm volatile("nop");
-		}
+		for (unsigned int i = 0; i < 10000; ++i) __asm__ volatile("nop");
+	}
+	return;
+}
+
+UNUSED_FUNCTION static void delay_us(unsigned int us) {
+	for (unsigned int j = 0; j < us; ++j) {
+		for (unsigned int i = 0; i < 10; ++i) __asm__ volatile("nop");
 	}
 	return;
 }

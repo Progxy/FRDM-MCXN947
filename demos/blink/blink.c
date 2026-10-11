@@ -14,7 +14,7 @@ void main(void) {
 		state = !state;
    	 	set_gpio_state(state, 0, 27);
   		set_gpio_state(state, 4, 1);
-  		delay(1000);
+  		delay_ms(1000);
  	}
 
   	return;

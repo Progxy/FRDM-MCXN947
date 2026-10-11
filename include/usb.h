@@ -6,6 +6,7 @@
 #include "./alloc.h"
 #include "./syscon.h"
 #include "./power.h"
+#include "./usb_phy.h"
 
 #define USB_MAX_HW_RESETS 5
 
@@ -128,6 +129,7 @@ typedef struct {
 	uint8_t aai: 1;
 	uint8_t uri: 1;
 	uint8_t sri: 1;
+
 	uint8_t sli: 1;
 	const uint8_t rsv: 1;
 	uint8_t ulpii: 1;
@@ -136,8 +138,10 @@ typedef struct {
 	uint8_t rcl: 1;
 	uint8_t ps: 1;
 	uint8_t as: 1;
+
 	uint8_t naki: 1;
 	const uint8_t rsv2: 7;
+
 	uint8_t ti0: 1;
 	uint8_t ti1: 1;
 	const uint8_t rsv3: 6;
@@ -279,6 +283,7 @@ const unsigned int endpt_complete_offset = 0x1BC;
 const unsigned int endpt_prime_offset = 0x1B0;
 const unsigned int endpt_flust_offset = 0x1B4;
 const unsigned int usb_dcc_params_offset = 0x124;
+const unsigned int usb_portsc1_offset = 0x184;
 
 // #define MAX_PACKET_SIZE 512
 // #define MAX_ENDPTS 32
@@ -324,9 +329,9 @@ void add_dtd_to_dqh(endpoint_transfer_descriptor_t* tdt, endpoint_queue_head_t* 
 		else endpt_prime -> petb = 1U << (endpt_idx >> 1);
 
 		if (endpt_idx & 0x1) {
-			while (!((endpt_stat -> erbr >> (endpt_idx >> 1)) & 0x01)) delay_ms(5);
+			while (!((endpt_stat -> erbr >> (endpt_idx >> 1)) & 0x01)) delay_us(1);
 		} else {
-			while (!((endpt_stat -> etbr >> (endpt_idx >> 1)) & 0x01)) delay_ms(5);
+			while (!((endpt_stat -> etbr >> (endpt_idx >> 1)) & 0x01)) delay_us(1);
 		}
 
 		return;
@@ -386,19 +391,24 @@ void init_endpoint(const uint8_t endpt_idx, const USBType usb_type, const uint8_
 
 int reset_usb_controller(const uint8_t endpts_cnt) {
 	volatile usb_cmd_t* usb_cmd = (usb_cmd_t*) (usb_addr + usb_cmd_offset);
-	usb_cmd -> rs = 0;
-
 	volatile usb_status_t* usb_status = (usb_status_t*) (usb_addr + usb_status_offset);
-	while (!usb_status -> hch) delay_ms(5);
+	/// TODO: Technically if the uC has just booted, the reset value of rs and
+	/// hch are 0, and therefore seems that in this condition we cannot trigger
+	/// a write to hch by writing a 0 to rs as we'd expect, therefore we should
+	/// either find another way or just add a condition for the other cases
+	/// where the uC has already initialized the USB controller (but will we
+	/// ever enable/disable/reenable the USB controller?)
+	// usb_cmd -> rs = 0;
+	// while (!usb_status -> hch) delay_us(1);
 
-	usb_cmd -> rst = 1;
-	while (usb_cmd -> rst) delay_ms(5);
+	//usb_cmd -> rst = 1;
+	//while (usb_cmd -> rst) delay_us(1);
 
 	volatile usb_mode_t* usb_mode = (usb_mode_t*) (usb_addr + usb_mode_offset);
 	usb_mode -> cm = DEVICE;
 	usb_mode -> slom = 1;
 
-	device_queue_heads = calloc(sizeof(endpoint_queue_head_t), endpts_cnt);
+	device_queue_heads = calloc(sizeof(endpoint_queue_head_t), MIN(endpts_cnt, 2));
 	if (device_queue_heads == NULL) return -1;
 
 	for (unsigned int i = 0; i < endpts_cnt; ++i) init_device_queue_head(device_queue_heads + i);
@@ -413,8 +423,8 @@ int reset_usb_controller(const uint8_t endpts_cnt) {
 	usb_int_enable -> ure = 1;
 	usb_int_enable -> sle = 1;
 
-	usb_cmd -> rs = 0;
-	while (usb_status -> hch) delay_ms(5);
+	usb_cmd -> rs = 1;
+	while (usb_status -> hch) delay_us(1);
 
 	return 0;
 }
@@ -427,14 +437,14 @@ int handle_bus_reset(void) {
 	*endpt_complete = *endpt_complete;
 
 	volatile uint32_t* endpt_prime = (uint32_t*) (usb_addr + endpt_prime_offset);
-	while (*endpt_prime) delay_ms(5);
+	while (*endpt_prime) delay_us(1);
 
 	volatile uint32_t* endpt_flush = (uint32_t*) (usb_addr + endpt_flust_offset);
 	*endpt_flush = 0xFFFFFFFF;
 
-	const unsigned int usb_portsc1_offset = 0x184;
 	volatile usb_portsc1_t* usb_portsc1 = (usb_portsc1_t*) (usb_addr + usb_portsc1_offset);
 	if (usb_portsc1 -> pr == 0) return 1;
+	usb_portsc1 -> pic = 0x01; // Set the color of the Port Indicator Control to Amber
 
 	return 0;
 }
@@ -549,6 +559,7 @@ void iso_sync(void) {
 }
 
 void handle_iso_response(void) {
+	// NOTE: Each micro-frame is 125us long (the uC internally uses a 60Mhz clock reference)
 	// The transaction error bit set in the status field indicates a fulfillment error condition. When a fulfillment error occurs, the frame after
 	// the transfer failed to complete wholly, the device controller will force retire the ISO-dTD and move to the next ISO-dTD.
 	// It is important to note that fulfillment errors are only caused due to partially completed packets. If no activity occurs to a primed
@@ -583,18 +594,23 @@ void handle_iso_response(void) {
 	return;
 }
 
+#define init_default_usb_device() init_usb_device(0, NULL, NULL)
 int init_usb_device(const uint8_t endpts_cnt, const USBType* usb_types, const uint8_t* mults) {
-	set_enable_clk_ctrl(2, (1U << 16) | (1U << 17));
 	// NOTE: We currently do not really support changing voltage level and
 	//       operational mode, therefore the following could be a bit unnecessary
-	int err = change_dcdc_voltage_lvl(0x02);
+	int err = change_dcdc_voltage_lvl(0x02); // TODO: If doesn't work should set to lvl3 ()
 	if (err) return err;
+
+	set_enable_clk_ctrl(2, (1U << 16) | (1U << 17));
+	set_enable_clk_ctrl(0, (1U << 27));
+
+	enable_usb_phy();
 
 	volatile usb_dcc_params_t* usb_dcc_params = (usb_dcc_params_t*) (usb_addr + usb_dcc_params_offset);
 	const uint8_t max_endpts = (usb_dcc_params -> den) << 1;
 	if (endpts_cnt > max_endpts) return -1;
 
-	for (unsigned int i = 0; (endpts_cnt > 2) && (i <= USB_MAX_HW_RESETS); ++i) {
+	for (unsigned int i = 0; i <= USB_MAX_HW_RESETS; ++i) {
 		if (i == USB_MAX_HW_RESETS) return -1;
 
 		err = reset_usb_controller(endpts_cnt);
