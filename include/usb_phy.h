@@ -64,7 +64,6 @@ typedef struct {
 	uint8_t lvi_en: 1;
 	uint8_t pfd_clk_sel: 2;
 	const uint8_t rsv1: 4;
-
 	const uint8_t rsv2: 2;
 	uint8_t dev_pulldown: 1;
 	const uint32_t rsv3: 21;
@@ -85,7 +84,7 @@ const unsigned int usb_phy_anactrl_set_offset = 0x104;
 
 #define USB_PHY_PWD_FIELDS_MASK 0x001E1C00
 
-void enable_usb_phy(void) {
+int enable_usb_phy(void) {
 	volatile usb_phy_ctrl_t* usb_phy_ctrl_clr = (usb_phy_ctrl_t*) (usb_phy_addr + usb_phy_ctrl_clr_offset);
 	volatile usb_phy_ctrl_t* usb_phy_ctrl_set = (usb_phy_ctrl_t*) (usb_phy_addr + usb_phy_ctrl_set_offset);
 	volatile uint32_t* usb_phy_pwd_clr = (uint32_t*) (usb_phy_addr + usb_phy_pwd_clr_offset);
@@ -100,27 +99,26 @@ void enable_usb_phy(void) {
 	usb_phy_ctrl_set -> en_utmi_level2 = 1;
 	usb_phy_ctrl_set -> en_utmi_level3 = 1;
 
-	// TODO: Enable useful fields in phy_ctrl
 	usb_phy_ctrl_set -> en_autoclr_phy_pwd = 1;
 	usb_phy_ctrl_set -> en_autoclr_clkgate = 1;
-	usb_phy_ctrl_set -> autoresume_en = 1;
-	usb_phy_ctrl_set -> dev_plugin_irq = 1;
 
-	// TODO: Enable the reference clock for the USB PLL, Configure the reference clock system oscillator
-	// TODO: Configure the phy_pll_sic -> pll_div_sel according to the system oscillator frequency
+	// NOTE: to the FRDM-MCXN947 external clock reference pin is connected a 24MHz XOSC
+	int err = update_sosc_clk_freq(SOSC_20_30MHZ);
+	if (err) return -1;
 
+	// set clk_in into usb_hs
+	clock_ctrl_set(0x2); // Set bitfield CLKIN_ENA_FM_USBH_LPT
+
+	usb_phy_pll_sic_set -> pll_div_sel_low = 0x02;
 	usb_phy_pll_sic_set -> pll_reg_enable = 1;
 	usb_phy_pll_sic_clr -> pll_bypass = 1;
-	// TODO: configure other fields in phy_pll_sic as needed
-
 	usb_phy_pll_sic_set -> pll_power = 1;
 	usb_phy_anactrl_set -> lvi_en = 1;
 
 	while (!usb_phy_pll_sic -> pll_lock) delay_us(1);
-
 	usb_phy_pll_sic_set -> pll_en_usb_clks = 1;
 
-	return;
+	return 0;
 }
 
 #endif //_USB_PHY_H_

@@ -18,4 +18,20 @@ void set_disable_clk_ctrl(unsigned int clk_ctrl_idx, unsigned int value) {
   return;
 }
 
+const unsigned int syscon_clock_ctrl_offset = 0xA18;
+
+#define SYSCON_CLOCK_CTRL_MASK_A 0x000002FF
+#define SYSCON_CLOCK_CTRL_MASK_B 0x00000081
+void clock_ctrl_set(uint32_t bitmask) {
+	volatile uint32_t* syscon_clock_ctrl = (uint32_t*) (sys_con_addr + syscon_clock_ctrl_offset);
+	*syscon_clock_ctrl = (*syscon_clock_ctrl | bitmask | SYSCON_CLOCK_CTRL_MASK_B) & SYSCON_CLOCK_CTRL_MASK_A;
+	return;
+}
+
+void clock_ctrl_clr(uint32_t bitmask) {
+	volatile uint32_t* syscon_clock_ctrl = (uint32_t*) (sys_con_addr + syscon_clock_ctrl_offset);
+	*syscon_clock_ctrl = ((*syscon_clock_ctrl & ~bitmask) | SYSCON_CLOCK_CTRL_MASK_B) & SYSCON_CLOCK_CTRL_MASK_A;
+	return;
+}
+
 #endif //_SYSCON_H_
