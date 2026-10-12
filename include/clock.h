@@ -102,7 +102,7 @@ int update_clk_freq(ClkFreq clk_freq) {
 	volatile scg_csr_t*   csr = (scg_csr_t*) (scg_addr + scg_csr_offset);
 
 	scg_firc_cfg_t firc_cfg_ = *firc_cfg;
-	firc_cfg -> range = clk_freq & 0x01;
+	firc_cfg_.range = clk_freq & 0x01;
 	*firc_cfg = firc_cfg_;
 
 	scg_firc_csr_t firc_csr_ = *firc_csr;
@@ -141,6 +141,7 @@ int update_sosc_clk_freq(SOSCFreq sosc_freq) {
 	scg_ldo_csr_t ldo_csr_ = *ldo_csr;
 	ldo_csr_.ldo_en = 1;
 	*ldo_csr = ldo_csr_;
+	while (!ldo_csr -> vout_ok) delay_us(1);
 
 	scg_sosc_cfg_t sosc_cfg_ = *sosc_cfg;
 	sosc_cfg_.erefs = 1;

@@ -94,7 +94,8 @@ int enable_usb_phy(void) {
 	int err = update_sosc_clk_freq(SOSC_20_30MHZ);
 	if (err) return -1;
 
-	clock_ctrl_set(0x2); // Set bitfield CLKIN_ENA_FM_USBH_LPT
+	clock_ctrl_set(SYSCON_CLKIN_ENA_FM_USBH_LPT_MASK | SYSCON_CLKIN_ENA_MASK);
+	set_enable_clk_ctrl(2, (1U << 16) | (1U << 17));
 
 	usb_phy_ctrl_clr -> sftrst = 1;
 	usb_phy_ctrl_clr -> clkgate = 1;
@@ -105,17 +106,16 @@ int enable_usb_phy(void) {
 	usb_phy_ctrl_set -> en_autoclr_phy_pwd = 1;
 	usb_phy_ctrl_set -> en_autoclr_clkgate = 1;
 
-	usb_phy_pll_sic -> pll_lock = 0;
 	usb_phy_pll_sic -> pll_div_sel_low = 0x02;
-	usb_phy_pll_sic -> pll_div_sel_high = 0;
+	usb_phy_pll_sic -> pll_div_sel_high = 0x00;
 	usb_phy_pll_sic -> pll_reg_enable = 1;
-	delay_ms(2);
+	delay_us(20);
+
 	usb_phy_pll_sic -> pll_bypass = 0;
 	usb_phy_pll_sic -> pll_power = 1;
 	usb_phy_anactrl_set -> lvi_en = 1;
 
 	while (!usb_phy_pll_sic -> pll_lock) delay_us(1);
-	__asm__ volatile("bkpt");
 	usb_phy_pll_sic -> pll_en_usb_clks = 1;
 
 	return 0;

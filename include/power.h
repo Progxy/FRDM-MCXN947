@@ -71,7 +71,7 @@ int increase_voltage_level(volatile spc_active_cfg_t* spc_active_cfg_addr, unsig
 	*spc_active_cfg_addr = spc_active_cfg;
 
 	volatile spc_sc_t* sc = (spc_sc_t*) (spc_addr + spc_sc_offset);
-	while (sc -> busy) delay_ms(5);
+	while (sc -> busy) delay_us(5);
 
 	set_fctrl_rwsc(3);
 
@@ -80,7 +80,7 @@ int increase_voltage_level(volatile spc_active_cfg_t* spc_active_cfg_addr, unsig
 	sram_ctl_.vsm = 2;
 	sram_ctl_.req = 1;
 	*sram_ctl = sram_ctl_;
-	while (!sram_ctl -> ack) delay_ms(5);
+	while (!sram_ctl -> ack) delay_us(5);
 
 	sram_ctl_.req = 0;
 	*sram_ctl = sram_ctl_;
@@ -101,7 +101,7 @@ int decrease_voltage_level(volatile spc_active_cfg_t* spc_active_cfg_addr, unsig
 	sram_ctl_.vsm = 1;
 	sram_ctl_.req = 1;
 	*sram_ctl = sram_ctl_;
-	while (!sram_ctl -> ack) delay_ms(5);
+	while (!sram_ctl -> ack) delay_us(5);
 
 	sram_ctl_.req = 1;
 	*sram_ctl = sram_ctl_;
@@ -112,7 +112,7 @@ int decrease_voltage_level(volatile spc_active_cfg_t* spc_active_cfg_addr, unsig
 	*spc_active_cfg_addr = spc_active_cfg;
 
 	volatile spc_sc_t* sc = (spc_sc_t*) (spc_addr + spc_sc_offset);
-	while (sc -> busy) delay_ms(5);
+	while (sc -> busy) delay_us(5);
 
 	return 0;
 }
@@ -125,7 +125,7 @@ int change_dcdc_voltage_lvl(unsigned int voltage_lvl) {
 	const spc_active_cfg_t active_cfg = *spc_active_cfg_addr;
 	if (active_cfg.dcdc_vdd_lvl > voltage_lvl) {
 		err = decrease_voltage_level(spc_active_cfg_addr, voltage_lvl);
-	} else if (active_cfg.dcdc_vdd_lvl > voltage_lvl) {
+	} else if (active_cfg.dcdc_vdd_lvl < voltage_lvl) {
 		err = increase_voltage_level(spc_active_cfg_addr, voltage_lvl);
 	}
 

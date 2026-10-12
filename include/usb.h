@@ -404,6 +404,9 @@ int reset_usb_controller(const uint8_t endpts_cnt) {
 	// while (!usb_status -> hch) delay_us(1);
 	usb_cmd -> rst = 1;
 
+	// Add a delay between RST and RS so make sure there is a DP pullup sequence
+	delay_ms(40);
+
 	volatile usb_mode_t* usb_mode = (usb_mode_t*) (usb_addr + usb_mode_offset);
 	usb_mode -> cm = DEVICE;
 	usb_mode -> slom = 1;
@@ -600,9 +603,6 @@ void handle_iso_response(void) {
 int init_usb_device(const uint8_t endpts_cnt, const USBType* usb_types, const uint8_t* mults) {
 	int err = change_dcdc_voltage_lvl(0x02);
 	if (err) return err;
-
-	set_enable_clk_ctrl(2, (1U << 16) | (1U << 17));
-	set_enable_clk_ctrl(0, (1U << 27));
 
 	enable_usb_phy();
 

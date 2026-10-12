@@ -254,5 +254,6 @@ void default_handler(void) {
 
 __attribute__((section(".after_vectors.hard_fault_handler"), naked, noreturn))
 void hard_fault_handler(void) {
+	__asm__ volatile("bkpt");
     __asm__ volatile("bx lr");
 }

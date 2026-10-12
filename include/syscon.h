@@ -1,6 +1,9 @@
 #ifndef _SYSCON_H_
 #define _SYSCON_H_
 
+#define SYSCON_CLKIN_ENA_FM_USBH_LPT_MASK 0x02
+#define SYSCON_CLKIN_ENA_MASK             0x20
+
 static const unsigned int sys_con_addr = 0x40000000;
 
 // TODO: Should add bitmasks to prevent write to reserved fields of clock controls?
