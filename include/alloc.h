@@ -12,8 +12,8 @@
 
 extern uint32_t _ram_start;
 extern uint32_t _ram_end;
-static const void* mem_base = (void*) (&_ram_start);
-static const void* mem_end  = (void*) (&_ram_end);
+static void* mem_base = NULL;
+static void* mem_end  = NULL;
 
 typedef struct block_hdr_t {
 	unsigned int block_size;
@@ -144,10 +144,13 @@ void* realloc(void* old_ptr, unsigned int size, unsigned int nmemb) {
 }
 
 void allocator_init(void) {
+	if (mem_base && mem_end) return;
+	mem_base = (void*) (&_ram_start);
+	mem_end  = (void*) (&_ram_end);
 	const unsigned int mem_size = (unsigned int) (mem_end - mem_base);
 	memset((void*) mem_base, 0, mem_size);
 	block_hdr_t* first_block = (block_hdr_t*) mem_base;
-	first_block -> block_size = mem_size / BLOCK_SIZE - 1;
+	first_block -> block_size = (mem_size / BLOCK_SIZE) - 1;
 	first_block -> next_block = NULL;
 	first_block -> prev_block = NULL;
 	first_block -> is_free = TRUE;

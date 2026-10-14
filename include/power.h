@@ -61,13 +61,16 @@ const unsigned int spc_addr = 0x40045000;
 const unsigned int spc_sc_offset = 0x10;
 const unsigned int spc_active_cfg_offset = 0x100;
 const unsigned int spc_sram_ctl_offset = 0x40;
+const unsigned int spc_active_vdelay_offset = 0x124;
 
 // NOTE: should only perform 32-bit writes on SPC registers otherwise we'll get a transfer error
 int increase_voltage_level(volatile spc_active_cfg_t* spc_active_cfg_addr, unsigned int voltage_lvl) {
+	volatile uint32_t* spc_active_vdelay = (uint32_t*) (spc_addr + spc_active_vdelay_offset);
+	*spc_active_vdelay = 0x500;
+
 	spc_active_cfg_t spc_active_cfg = *spc_active_cfg_addr;
 	spc_active_cfg.dcdc_vdd_lvl = voltage_lvl & 0x03;
 	spc_active_cfg.coreldo_vdd_lvl = voltage_lvl & 0x03;
-
 	*spc_active_cfg_addr = spc_active_cfg;
 
 	volatile spc_sc_t* sc = (spc_sc_t*) (spc_addr + spc_sc_offset);
@@ -85,9 +88,9 @@ int increase_voltage_level(volatile spc_active_cfg_t* spc_active_cfg_addr, unsig
 	sram_ctl_.req = 0;
 	*sram_ctl = sram_ctl_;
 
-	int err = update_clk_freq(MHZ_144);
-
-	return err;
+	//int err = update_clk_freq(MHZ_144);
+	//return err;
+	return 0;
 }
 
 int decrease_voltage_level(volatile spc_active_cfg_t* spc_active_cfg_addr, unsigned int voltage_lvl) {

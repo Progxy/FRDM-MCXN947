@@ -108,16 +108,16 @@ typedef struct {
 	uint8_t pse: 1;
 	uint8_t ase: 1;
 	uint8_t iaa: 1;
-	const uint8_t rsv: 1;
+	uint8_t rsv: 1;
 	uint8_t asp: 2;
-	const uint8_t rsv1: 1;
+	uint8_t rsv1: 1;
 	uint8_t aspe: 1;
-	const uint8_t rsv2: 1;
+	uint8_t rsv2: 1;
 	uint8_t sutw: 1;
 	uint8_t atdtw: 1;
 	uint8_t fs_2: 1;
 	uint8_t itc;
-	const uint8_t rsv3;
+	uint8_t rsv3;
 } __attribute__((packed)) usb_cmd_t;
 
 typedef struct {
@@ -131,20 +131,20 @@ typedef struct {
 	uint8_t sri: 1;
 
 	uint8_t sli: 1;
-	const uint8_t rsv: 1;
+	uint8_t rsv: 1;
 	uint8_t ulpii: 1;
-	const uint8_t rsv1: 1;
+	uint8_t rsv1: 1;
 	uint8_t hch: 1;
 	uint8_t rcl: 1;
 	uint8_t ps: 1;
 	uint8_t as: 1;
 
 	uint8_t naki: 1;
-	const uint8_t rsv2: 7;
+	uint8_t rsv2: 7;
 
 	uint8_t ti0: 1;
 	uint8_t ti1: 1;
-	const uint8_t rsv3: 6;
+	uint8_t rsv3: 6;
 } __attribute__((packed)) usb_status_t;
 
 typedef struct {
@@ -288,8 +288,8 @@ const unsigned int usb_portsc1_offset = 0x184;
 #define MAX_PACKET_SIZE 512
 #define MAX_ENDPTS 32
 
-//endpoint_queue_head_t device_queue_heads[MAX_ENDPTS] = {0};
-endpoint_queue_head_t* device_queue_heads = NULL;
+__attribute__((aligned(2048)))endpoint_queue_head_t device_queue_heads[MAX_ENDPTS] = {0};
+//endpoint_queue_head_t* device_queue_heads = NULL;
 endpoint_transfer_descriptor_t* endpts_tdt_heads[32] = {0};
 
 int init_transfer_descriptor(endpoint_transfer_descriptor_t* tdt, const uint8_t* buf, const uint16_t total_bytes) {
@@ -369,9 +369,9 @@ void init_endpoint(const uint8_t endpt_idx, const USBType usb_type, const uint8_
 
 	if (usb_type == ISOCHRONOUS) (device_queue_heads + endpt_idx) -> mult = mult;
 
-	volatile usb_endptctl_t* endptctl = (usb_endptctl_t*) (usb_endptctl_offset + 4 * endpt_idx);
-	endptctl -> rxs = 0;
-	endptctl -> txs = 0;
+	volatile usb_endptctl_t* endptctl = (usb_endptctl_t*) (usb_addr + usb_endptctl_offset + 4 * endpt_idx);
+	endptctl -> rxs = 1;
+	endptctl -> txs = 1;
 
 	if (endpt_idx > 0) {
 		endptctl -> rxd = 0;
@@ -390,34 +390,37 @@ void init_endpoint(const uint8_t endpt_idx, const USBType usb_type, const uint8_
 	return;
 }
 
+// TODO: the following functions expects a reset (either hardware or software)
+//       to occur before its execution
 int reset_usb_controller(const uint8_t endpts_cnt) {
 	volatile usb_cmd_t* usb_cmd = (usb_cmd_t*) (usb_addr + usb_cmd_offset);
 	volatile usb_status_t* usb_status = (usb_status_t*) (usb_addr + usb_status_offset);
-	/// TODO: Technically if the uC has just booted, the reset value of rs and
-	/// hch are 0, and therefore seems that in this condition we cannot trigger
-	/// a write to hch by writing a 0 to rs as we'd expect, therefore we should
-	/// either find another way or just add a condition for the other cases
-	/// where the uC has already initialized the USB controller (but will we
-	/// ever enable/disable/reenable the USB controller?)
 
-	usb_cmd -> rs = 0;
+	// usb_cmd -> rs = 0;
 	// while (!usb_status -> hch) delay_us(1);
-	usb_cmd -> rst = 1;
-
+	// usb_cmd -> rst = 1;
+	// while (usb_cmd -> rst) delay_us(1);
 	// Add a delay between RST and RS so make sure there is a DP pullup sequence
-	delay_ms(40);
+	//delay_ms(40);
 
 	volatile usb_mode_t* usb_mode = (usb_mode_t*) (usb_addr + usb_mode_offset);
 	usb_mode -> cm = DEVICE;
 	usb_mode -> slom = 1;
 
-	device_queue_heads = calloc(sizeof(endpoint_queue_head_t), MIN(endpts_cnt, 2));
-	if (device_queue_heads == NULL) return -1;
+	// TODO: The problem is that it needs to be 2048 byte aligned and we currently do not support this kind of alignment
+	//device_queue_heads = calloc(sizeof(endpoint_queue_head_t), MAX(endpts_cnt, 2));
+	//if (device_queue_heads == NULL) {
+	//	__asm__ volatile("bkpt");
+	//	return -1;
+	//}
+
+	memset(device_queue_heads, 0, sizeof(device_queue_heads));
 
 	for (unsigned int i = 0; i < endpts_cnt; ++i) init_device_queue_head(device_queue_heads + i);
 
 	volatile usb_endptlistaddr_t* usb_endptlistaddr = (usb_endptlistaddr_t*) (usb_addr + usb_endptlistaddr_offset);
-	usb_endptlistaddr -> epbase = mask_lower_bits((uint32_t) device_queue_heads, 11);
+	usb_endptlistaddr -> epbase = mask_lower_bits((uint32_t) device_queue_heads, 11) >> 11;
+	uint32_t v = *(uint32_t*)usb_endptlistaddr;
 
 	volatile usb_int_enable_t* usb_int_enable = (usb_int_enable_t*) (usb_addr + usb_int_enable_offset);
 	usb_int_enable -> ue = 1;
@@ -425,8 +428,6 @@ int reset_usb_controller(const uint8_t endpts_cnt) {
 	usb_int_enable -> pce = 1;
 	usb_int_enable -> ure = 1;
 	usb_int_enable -> sle = 1;
-
-	while (usb_cmd -> rst) delay_us(1);
 
 	usb_cmd -> rs = 1;
 	while (usb_status -> hch) delay_us(1);
@@ -601,6 +602,8 @@ void handle_iso_response(void) {
 
 #define init_default_usb_device() init_usb_device(0, NULL, NULL)
 int init_usb_device(const uint8_t endpts_cnt, const USBType* usb_types, const uint8_t* mults) {
+	allocator_init();
+
 	int err = change_dcdc_voltage_lvl(0x02);
 	if (err) return err;
 
@@ -608,25 +611,23 @@ int init_usb_device(const uint8_t endpts_cnt, const USBType* usb_types, const ui
 
 	if (endpts_cnt > MAX_ENDPTS) return -1;
 
+	for (int i = 0; i < ((int) endpts_cnt - 2); ++i) init_endpoint(i, usb_types[i], mults[i]);
+
 	for (unsigned int i = 0; i <= USB_MAX_HW_RESETS; ++i) {
 		if (i == USB_MAX_HW_RESETS) return -1;
 
 		err = reset_usb_controller(endpts_cnt);
 		if (err) return err;
-
-		err = handle_bus_reset();
-		if (err == 0) break;
+		else if (err == 0) break;
 	}
-
-	init_endpoint(0, CONTROL, 0);
-	for (int i = 0; i < ((int) endpts_cnt - 2); ++i) init_endpoint(i, usb_types[i], mults[i]);
 
 	return 0;
 }
 
 void deinit_usb_device(void) {
 	// Flush endpoints and deallocate any linked list
-	free(device_queue_heads);
+	// TODO: Look at the TODO within the reset_usb_controller function
+	//free(device_queue_heads);
 	return;
 }
 
