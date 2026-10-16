@@ -289,8 +289,7 @@ const unsigned int usb_portsc1_offset = 0x184;
 #define MAX_ENDPTS 32
 
 __attribute__((aligned(2048)))endpoint_queue_head_t device_queue_heads[MAX_ENDPTS] = {0};
-//endpoint_queue_head_t* device_queue_heads = NULL;
-endpoint_transfer_descriptor_t* endpts_tdt_heads[32] = {0};
+endpoint_transfer_descriptor_t* endpts_tdt_heads[MAX_ENDPTS] = {0};
 
 int init_transfer_descriptor(endpoint_transfer_descriptor_t* tdt, const uint8_t* buf, const uint16_t total_bytes) {
 	if (buf == NULL) return -1;
@@ -390,20 +389,21 @@ void init_endpoint(const uint8_t endpt_idx, const USBType usb_type, const uint8_
 	return;
 }
 
-// TODO: the following functions expects a reset (either hardware or software)
-//       to occur before its execution
 int reset_usb_controller(const uint8_t endpts_cnt) {
 	volatile usb_cmd_t* usb_cmd = (usb_cmd_t*) (usb_addr + usb_cmd_offset);
 	volatile usb_status_t* usb_status = (usb_status_t*) (usb_addr + usb_status_offset);
-
-	// usb_cmd -> rs = 0;
-	// while (!usb_status -> hch) delay_us(1);
-	// usb_cmd -> rst = 1;
-	// while (usb_cmd -> rst) delay_us(1);
-	// Add a delay between RST and RS so make sure there is a DP pullup sequence
-	//delay_ms(40);
-
 	volatile usb_mode_t* usb_mode = (usb_mode_t*) (usb_addr + usb_mode_offset);
+
+	usb_cmd -> rs = 0;
+	while (TRUE){
+		delay_us(1);
+		if (usb_status -> hch) break;
+		else if (usb_mode -> cm == IDLE) break;
+	}
+
+	usb_cmd -> rst = 1;
+	while (usb_cmd -> rst) delay_us(1);
+
 	usb_mode -> cm = DEVICE;
 	usb_mode -> slom = 1;
 
@@ -429,8 +429,17 @@ int reset_usb_controller(const uint8_t endpts_cnt) {
 	usb_int_enable -> ure = 1;
 	usb_int_enable -> sle = 1;
 
+	usb_status_t st = *usb_status;
 	usb_cmd -> rs = 1;
 	while (usb_status -> hch) delay_us(1);
+
+	st = *usb_status;
+	if (st.hch) __asm__ volatile("bkpt");
+	__asm__ volatile ("bkpt");
+
+	st = *usb_status;
+	if (st.hch) __asm__ volatile("bkpt");
+	__asm__ volatile ("bkpt");
 
 	return 0;
 }
