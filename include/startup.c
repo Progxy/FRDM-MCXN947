@@ -24,6 +24,10 @@ void debug_monitor_handler(void) __attribute__((weak, alias("default_handler"), 
 void pend_sv_handler(void)       __attribute__((weak, alias("default_handler"), naked, noreturn));
 void sys_tick_handler(void)      __attribute__((weak, alias("default_handler"), naked, noreturn));
 void usbhs_dcd_handler(void)     __attribute__((weak, alias("default_handler"), naked, noreturn));
+void usbfs_handler(void)         __attribute__((weak, alias("default_handler"), naked, noreturn));
+void usbhs_handler(void)         __attribute__((weak, alias("default_handler"), naked, noreturn));
+void i3c0_handler(void)          __attribute__((weak, alias("default_handler"), naked, noreturn));
+void i3c1_handler(void)          __attribute__((weak, alias("default_handler"), naked, noreturn));
 
 extern const uint32_t vector_table[];
 
@@ -109,22 +113,7 @@ const uint32_t vector_table[] = {
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
+	(uint32_t) usbfs_handler,
 	(uint32_t) usbhs_dcd_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
@@ -140,6 +129,8 @@ const uint32_t vector_table[] = {
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
+	(uint32_t) usbhs_dcd_handler,
+	(uint32_t) usbhs_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
@@ -156,6 +147,19 @@ const uint32_t vector_table[] = {
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
+	(uint32_t) default_handler,
+	(uint32_t) default_handler,
+	(uint32_t) default_handler,
+	(uint32_t) default_handler,
+	(uint32_t) default_handler,
+	(uint32_t) default_handler,
+	(uint32_t) default_handler,
+	(uint32_t) default_handler,
+	(uint32_t) default_handler,
+	(uint32_t) default_handler,
+	(uint32_t) default_handler,
+	(uint32_t) i3c0_handler,
+	(uint32_t) i3c1_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,

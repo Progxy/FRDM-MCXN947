@@ -646,4 +646,16 @@ void usbhs_dcd_handler(void) {
 	__asm__ volatile("bx lr");
 }
 
+__attribute__((section(".after_vectors.usbfs_handler"), naked, noreturn))
+void usbfs_handler(void) {
+	__asm__ volatile("bkpt");
+	__asm__ volatile("bx lr");
+}
+
+__attribute__((section(".after_vectors.usbhs_handler"), naked, noreturn))
+void usbhs_handler(void) {
+	__asm__ volatile("bkpt");
+	__asm__ volatile("bx lr");
+}
+
 #endif //_USB_H_
