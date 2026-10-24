@@ -95,6 +95,11 @@ const unsigned int scg_firc_cfg_offset = 0x308;
 const unsigned int scg_ldo_csr_offset = 0x800;
 
 // TODO: should only perform 32-bit writes on SCG registers otherwise we'll get a transfer error
+ClkFreq get_firc_clk_freq(void) {
+	volatile uint32_t* firc_cfg = (uint32_t*) (scg_addr + scg_firc_cfg_offset);
+	return (*firc_cfg & 0x01);
+}
+
 int update_clk_freq(ClkFreq clk_freq) {
 	volatile scg_firc_cfg_t* firc_cfg = (scg_firc_cfg_t*) (scg_addr + scg_firc_cfg_offset);
 	volatile scg_firc_csr_t* firc_csr = (scg_firc_csr_t*) (scg_addr + scg_firc_csr_offset);
