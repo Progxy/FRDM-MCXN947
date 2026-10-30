@@ -43,7 +43,24 @@ void syscon_set_i3c0_clock(uint8_t sel, uint8_t div) {
 	volatile uint32_t* i3c0_clock_sel = (uint32_t*) (syscon_addr + syscon_i3c0_clock_sel);
 	*i3c0_clock_sel = sel & 0x07;
 	volatile uint32_t* i3c0_clock_div = (uint32_t*) (syscon_addr + syscon_i3c0_clock_div);
-	*i3c0_clock_div = (1U << 30) | div;
+	*i3c0_clock_div = div & 0xFF;
+	return;
+}
+
+const unsigned int syscon_i3c1_clock_sel = 0xB30;
+const unsigned int syscon_i3c1_clock_div = 0xB40;
+void syscon_set_i3c1_clock(uint8_t sel, uint8_t div) {
+	volatile uint32_t* i3c1_clock_sel = (uint32_t*) (syscon_addr + syscon_i3c1_clock_sel);
+	*i3c1_clock_sel = sel & 0x07;
+	volatile uint32_t* i3c1_clock_div = (uint32_t*) (syscon_addr + syscon_i3c1_clock_div);
+	*i3c1_clock_div = div & 0xFF;
+	return;
+}
+
+const unsigned int syscon_fc_clk_sel_base = 0x2B0;
+void syscon_enable_flexcomm_clock(uint8_t id, uint8_t sel) {
+	volatile uint32_t* fc_clk_sel = (uint32_t*) (syscon_addr + syscon_fc_clk_sel_base + id * 4);
+	*fc_clk_sel = sel & 0x07;
 	return;
 }
 

@@ -71,6 +71,26 @@ typedef struct {
 	uint8_t rsv1: 4;
 } __attribute__((packed)) scg_rccr_t;
 
+typedef struct {
+	uint8_t rsv: 1;
+	uint8_t sirc_sten: 1;
+	uint8_t rsv1: 3;
+	uint8_t sirc_clk_periph_en: 1;
+	uint8_t rsv2: 2;
+	uint8_t sirc_tren: 1;
+	uint8_t sirc_trup: 1;
+	uint8_t trim_lock: 1;
+	uint8_t coarse_trim_bypass: 1;
+	uint8_t rsv3: 4;
+	uint8_t rsv4: 7;
+	uint8_t lock: 1;
+	uint8_t sirc_vld: 1;
+	uint8_t sirc_sel: 1;
+	uint8_t sirc_err: 1;
+	uint8_t sirc_err_ie: 1;
+	uint8_t rsv5: 4;
+} __attribute__((packed)) scg_sirc_csr_t;
+
 typedef scg_rccr_t scg_csr_t;
 
 static_assert(sizeof(scg_csr_t) == 4,      "Size must be 4 bytes");
@@ -80,6 +100,7 @@ static_assert(sizeof(scg_firc_cfg_t) == 4, "Size must be 4 bytes");
 static_assert(sizeof(scg_firc_csr_t) == 4, "Size must be 4 bytes");
 static_assert(sizeof(scg_sosc_csr_t) == 4, "Size must be 4 bytes");
 static_assert(sizeof(scg_sosc_cfg_t) == 4, "Size must be 4 bytes");
+static_assert(sizeof(scg_sirc_csr_t) == 4, "Size must be 4 bytes");
 
 typedef enum { MHZ_48 = 0, MHZ_144 = 1 } ClkFreq;
 typedef enum { SOSC_16_20MHZ = 0, SOSC_20_30MHZ = 1, SOSC_30_50MHZ = 2, SOSC_50_66MHZ = 3 } SOSCFreq;
@@ -90,17 +111,18 @@ const unsigned int scg_rccr_offset = 0x14;
 const unsigned int scg_csr_offset = 0x10;
 const unsigned int scg_sosc_csr_offset = 0x100;
 const unsigned int scg_sosc_cfg_offset = 0x108;
+const unsigned int scg_sirc_csr_offset = 0x200;
 const unsigned int scg_firc_csr_offset = 0x300;
 const unsigned int scg_firc_cfg_offset = 0x308;
 const unsigned int scg_ldo_csr_offset = 0x800;
 
-// TODO: should only perform 32-bit writes on SCG registers otherwise we'll get a transfer error
+// NOTE: only perform 32-bit writes on SCG registers otherwise we'll get a transfer error
 ClkFreq get_firc_clk_freq(void) {
 	volatile uint32_t* firc_cfg = (uint32_t*) (scg_addr + scg_firc_cfg_offset);
 	return (*firc_cfg & 0x01);
 }
 
-int update_clk_freq(ClkFreq clk_freq) {
+int update_firc_clk_freq(ClkFreq clk_freq) {
 	volatile scg_firc_cfg_t* firc_cfg = (scg_firc_cfg_t*) (scg_addr + scg_firc_cfg_offset);
 	volatile scg_firc_csr_t* firc_csr = (scg_firc_csr_t*) (scg_addr + scg_firc_csr_offset);
 	volatile scg_rccr_t* rccr = (scg_rccr_t*) (scg_addr + scg_rccr_offset);
@@ -163,6 +185,23 @@ int update_sosc_clk_freq(SOSCFreq sosc_freq) {
 	sosc_csr_.lock = 1;
 	*sosc_csr = sosc_csr_;
 	*trim_lock = 0x5A5A0000; // Reenable TRIM lock mechanism
+
+	return 0;
+}
+
+int enable_sirc_clk(void) {
+	volatile scg_sirc_csr_t* sirc_csr = (scg_sirc_csr_t*) (scg_addr + scg_sirc_csr_offset);
+	scg_sirc_csr_t sirc_csr_ = *sirc_csr;
+	sirc_csr_.lock = 0;
+	sirc_csr_.sirc_sten = 1;
+	sirc_csr_.sirc_clk_periph_en = 1;
+	*sirc_csr = sirc_csr_;
+
+	while (!sirc_csr -> sirc_vld) delay_us(1);
+	if (sirc_csr -> sirc_err) return -1;
+
+	sirc_csr_.lock = 1;
+	*sirc_csr = sirc_csr_;
 
 	return 0;
 }
