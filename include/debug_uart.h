@@ -3,9 +3,9 @@
 
 #include <syscon.h>
 #include <clock.h>
+#include <port.h>
 #include "./utils.h"
 
-// TODO: See FLEXCOMM Section 66 regarding USB-to-UART
 typedef enum { DEBUG_UART_OK = 0, DEBUG_UART_UNSUPPORTED = 1, DEBUG_UART_INIT_FAIL = 2, DEBUG_UART_TX_FAIL = 3, DEBUG_UART_RX_FAIL = 4 } DebugUARTErrors;
 
 const unsigned int lp_flexcomm0_addr = 0x40092000;
@@ -198,10 +198,15 @@ int init_debug_uart(const uint32_t baud_rate) {
 	int err = enable_sirc_clk();
 	if (err) return -DEBUG_UART_INIT_FAIL;
 
-	set_enable_clk_ctrl(1, (1U << 11));
-	syscon_enable_flexcomm_clock(0, 2);
+	set_ahb_clk_ctrl(1, (1U << FC4));
+	enable_flexcomm_clock(4, 2);
 
-	volatile pselid_t* pselid = (pselid_t*) (lp_flexcomm0_addr + pselid_addr);
+	err = set_pin_function(1, 8, (0x02U << 8));
+	if (err) return -DEBUG_UART_INIT_FAIL;
+	err = set_pin_function(1, 9, (0x02U << 8));
+	if (err) return -DEBUG_UART_INIT_FAIL;
+
+	volatile pselid_t* pselid = (pselid_t*) (lp_flexcomm4_addr + pselid_addr);
 	if (pselid -> uart_present == 0) return -DEBUG_UART_UNSUPPORTED;
 
 	if (pselid -> lock) return -DEBUG_UART_INIT_FAIL;
@@ -210,24 +215,24 @@ int init_debug_uart(const uint32_t baud_rate) {
 	pselid -> lock = 1;
 
 	// Reset the LPUART
-	volatile uart_global_t* uart_global = (uart_global_t*) (lp_uart0_addr + uart_global_addr);
+	volatile uart_global_t* uart_global = (uart_global_t*) (lp_uart4_addr + uart_global_addr);
 	uart_global -> rst = 1;
 	uart_global -> rst = 0;
 
-	volatile uart_ctrl_t* uart_ctrl = (uart_ctrl_t*) (lp_uart0_addr + uart_ctrl_addr);
+	volatile uart_ctrl_t* uart_ctrl = (uart_ctrl_t*) (lp_uart4_addr + uart_ctrl_addr);
 	uart_ctrl -> re = 0;
 	uart_ctrl -> te = 0;
 
 	// Set the baud rate
-	volatile uart_baud_t* uart_baud = (uart_baud_t*) (lp_uart0_addr + uart_baud_addr);
+	volatile uart_baud_t* uart_baud = (uart_baud_t*) (lp_uart4_addr + uart_baud_addr);
 	// TODO: Find a good way to get the sbr and osr ideal values.
 	//       Currently fixed baud rate of 115_200
 	uart_baud -> osr = 0x07;
 	uart_baud -> sbr = 13;
 
 	// Enable FIFOs and set their sizes
-	volatile uart_fifo_t* uart_fifo = (uart_fifo_t*) (lp_uart0_addr + uart_fifo_addr);
-	volatile uart_water_t* uart_water = (uart_water_t*) (lp_uart0_addr + uart_water_addr);
+	volatile uart_fifo_t* uart_fifo = (uart_fifo_t*) (lp_uart4_addr + uart_fifo_addr);
+	volatile uart_water_t* uart_water = (uart_water_t*) (lp_uart4_addr + uart_water_addr);
 
 	const int tx_fifo_size = fifo_size[uart_fifo -> tx_fifo_size];
 	uart_water -> txwater = (tx_fifo_size & 0x07) - 1;
@@ -238,17 +243,9 @@ int init_debug_uart(const uint32_t baud_rate) {
 	uart_fifo -> tx_flush = 1;
 
 	// Enable parity bit even/odd
+	// TODO: extend bit payload size (e.g. 8 bits -> 9 bits, data + parity bit)
 	// uart_ctrl -> pt = UART_ODD_PARITY; // UART_EVEN_PARITY;
 	// uart_ctrl -> pe = 1;
-
-	// uart_ctrl -> orie = 1;
-	// uart_ctrl -> neie = 1;
-	// uart_ctrl -> feie = 1;
-	// uart_ctrl -> peie = 1;
-	// uart_ctrl -> tie = 1;
-	// uart_ctrl -> tcie = 1;
-	// uart_ctrl -> rie = 1;
-	// uart_ctrl -> ilie = 1;
 
 	// Enable TX and RX
 	uart_ctrl -> re = 1;
@@ -258,38 +255,19 @@ int init_debug_uart(const uint32_t baud_rate) {
 }
 
 int send_uart(const void* data, const unsigned int size) {
-	volatile uart_fifo_t* uart_fifo = (uart_fifo_t*) (lp_uart0_addr + uart_fifo_addr);
-	volatile uart_water_t* uart_water = (uart_water_t*) (lp_uart0_addr + uart_water_addr);
-	volatile uart_stat_t* uart_stat = (uart_stat_t*) (lp_uart0_addr + uart_stat_addr);
-	volatile uart_data_t* uart_data = (uart_data_t*) (lp_uart0_addr + uart_data_addr);
+	volatile uart_fifo_t* uart_fifo = (uart_fifo_t*) (lp_uart4_addr + uart_fifo_addr);
+	volatile uart_water_t* uart_water = (uart_water_t*) (lp_uart4_addr + uart_water_addr);
+	volatile uart_stat_t* uart_stat = (uart_stat_t*) (lp_uart4_addr + uart_stat_addr);
+	volatile uart_data_t* uart_data = (uart_data_t*) (lp_uart4_addr + uart_data_addr);
 
 	for (unsigned int i = 0; i < size; ++i) {
 		unsigned int cnt = 0;
-		while (!uart_stat -> tdre) {
-			delay_us(1);
-			if (cnt++ < 100) continue;
-			uart_fifo_t u = *uart_fifo;
-			uart_water_t w = *uart_water;
-			uart_stat_t s = *uart_stat;
-			if (s.tc == 0) __asm__ ("bkpt");
-			if (u.tx_fifo_size || w.tx_count) __asm__ ("bkpt");
-			__asm__ ("bkpt");
-		}
+		while (!uart_stat -> tdre) delay_us(1);
 		uart_data -> data = ((uint8_t*) data)[i];
-		//if (uart_data -> fretsc || uart_data -> parity_err || uart_data -> noisy) return -DEBUG_UART_TX_FAIL;
+		if (uart_data -> fretsc || uart_data -> parity_err || uart_data -> noisy) return -DEBUG_UART_TX_FAIL;
 	}
 
-	// TODO: The missing complete could be caused by the flow control hardware
-	// being unintentionally active (CTS line expecting to be toggled)
-	while (!uart_stat -> tc) {
-		delay_us(1);
-		uart_fifo_t u = *uart_fifo;
-		uart_water_t w = *uart_water;
-		uart_stat_t s = *uart_stat;
-		if (s.tc == 0) __asm__ ("bkpt");
-		if (u.tx_fifo_size || w.tx_count) __asm__ ("bkpt");
-		__asm__ ("bkpt");
-	}
+	while (!uart_stat -> tc) delay_us(1);
 
 	return DEBUG_UART_OK;
 }

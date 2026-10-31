@@ -122,6 +122,7 @@ ClkFreq get_firc_clk_freq(void) {
 	return (*firc_cfg & 0x01);
 }
 
+// TODO: Currently not working
 int update_firc_clk_freq(ClkFreq clk_freq) {
 	volatile scg_firc_cfg_t* firc_cfg = (scg_firc_cfg_t*) (scg_addr + scg_firc_cfg_offset);
 	volatile scg_firc_csr_t* firc_csr = (scg_firc_csr_t*) (scg_addr + scg_firc_csr_offset);
@@ -158,7 +159,9 @@ int update_sosc_clk_freq(SOSCFreq sosc_freq) {
 	volatile scg_ldo_csr_t* ldo_csr = (scg_ldo_csr_t*) (scg_addr + scg_ldo_csr_offset);
 	volatile uint32_t* trim_lock = (uint32_t*) (scg_addr + scg_trim_lock_offset);
 
-	set_enable_clk_ctrl(0, (1U << 13));
+	set_ahb_clk_ctrl(0, (1U << PORT0) | (1U << PORT1) | (1U << PORT2) | (1U << PORT3) | (1U << PORT4));
+	set_ahb_clk_ctrl(2, (1U << SCG));
+
 	scg_sosc_csr_t sosc_csr_ = *sosc_csr;
 	sosc_csr_.lock = 0;
 	sosc_csr_.enable = 0;
@@ -190,11 +193,15 @@ int update_sosc_clk_freq(SOSCFreq sosc_freq) {
 }
 
 int enable_sirc_clk(void) {
+	set_ahb_clk_ctrl(0, (1U << PORT0) | (1U << PORT1) | (1U << PORT2) | (1U << PORT3) | (1U << PORT4));
+	set_ahb_clk_ctrl(2, (1U << SCG));
+
 	volatile scg_sirc_csr_t* sirc_csr = (scg_sirc_csr_t*) (scg_addr + scg_sirc_csr_offset);
 	scg_sirc_csr_t sirc_csr_ = *sirc_csr;
 	sirc_csr_.lock = 0;
 	sirc_csr_.sirc_sten = 1;
 	sirc_csr_.sirc_clk_periph_en = 1;
+	sirc_csr_.sirc_err_ie = 1;
 	*sirc_csr = sirc_csr_;
 
 	while (!sirc_csr -> sirc_vld) delay_us(1);

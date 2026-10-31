@@ -124,9 +124,9 @@ void init_i3c(void) {
 	// Enable clock with syscon, ensure that the clock runs at 24Mhz
 	ClkFreq clk_freq = get_firc_clk_freq();
 	uint8_t clk_div = 0x01 + clk_freq * 4;
-	syscon_set_i3c0_clock(0x3, clk_div);
-	syscon_set_i3c1_clock(0x3, clk_div);
-	set_enable_clk_ctrl(3, (1U << 0) | (1U << 1));
+	set_i3c0_clock(0x3, clk_div);
+	set_i3c1_clock(0x3, clk_div);
+	set_ahb_clk_ctrl(3, (1U << I3C_0) | (1U << I3C_1));
 	// Enable P1_16 P1_17 with alternative function 10, also enable port 1 clock?
 
 	mconfig_t mconfig_ = {0};
