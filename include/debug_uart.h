@@ -6,7 +6,7 @@
 #include <port.h>
 #include "./utils.h"
 
-typedef enum { DEBUG_UART_OK = 0, DEBUG_UART_UNSUPPORTED = 1, DEBUG_UART_INIT_FAIL = 2, DEBUG_UART_TX_FAIL = 3, DEBUG_UART_RX_FAIL = 4 } DebugUARTErrors;
+typedef enum { DEBUG_UART_OK = 0, DEBUG_UART_UNSUPPORTED, DEBUG_UART_INIT_FAIL, DEBUG_UART_TX_FAIL, DEBUG_UART_RX_FAIL, DEBUG_UART_UNSUPPORTED_BAUD_RATE } DebugUARTErrors;
 
 const unsigned int lp_flexcomm0_addr = 0x40092000;
 const unsigned int lp_flexcomm1_addr = 0x40093000;
@@ -170,22 +170,22 @@ typedef struct {
 	uint32_t rsv2: 24;
 } __attribute__((packed)) uart_global_t;
 
-static_assert(sizeof(pselid_t)     == 4, "Size must be 4 bytes");
-static_assert(sizeof(uart_ctrl_t)  == 4, "Size must be 4 bytes");
-static_assert(sizeof(uart_baud_t)  == 4, "Size must be 4 bytes");
-static_assert(sizeof(uart_fifo_t)  == 4, "Size must be 4 bytes");
-static_assert(sizeof(uart_data_t)  == 4, "Size must be 4 bytes");
-static_assert(sizeof(uart_water_t) == 4, "Size must be 4 bytes");
-static_assert(sizeof(uart_stat_t)  == 4, "Size must be 4 bytes");
+static_assert(sizeof(pselid_t)       == 4, "Size must be 4 bytes");
+static_assert(sizeof(uart_ctrl_t)    == 4, "Size must be 4 bytes");
+static_assert(sizeof(uart_baud_t)    == 4, "Size must be 4 bytes");
+static_assert(sizeof(uart_fifo_t)    == 4, "Size must be 4 bytes");
+static_assert(sizeof(uart_data_t)    == 4, "Size must be 4 bytes");
+static_assert(sizeof(uart_water_t)   == 4, "Size must be 4 bytes");
+static_assert(sizeof(uart_stat_t)    == 4, "Size must be 4 bytes");
 static_assert(sizeof(uart_global_t)  == 4, "Size must be 4 bytes");
 
 const unsigned int uart_global_addr = 0x08;
-const unsigned int uart_baud_addr = 0x10;
-const unsigned int uart_stat_addr = 0x14;
-const unsigned int uart_ctrl_addr = 0x18;
-const unsigned int uart_data_addr = 0x1C;
-const unsigned int uart_fifo_addr = 0x28;
-const unsigned int uart_water_addr = 0x2C;
+const unsigned int uart_baud_addr   = 0x10;
+const unsigned int uart_stat_addr   = 0x14;
+const unsigned int uart_ctrl_addr   = 0x18;
+const unsigned int uart_data_addr   = 0x1C;
+const unsigned int uart_fifo_addr   = 0x28;
+const unsigned int uart_water_addr  = 0x2C;
 
 typedef enum { FLEXCOMM_NONE = 0, FLEXCOMM_UART = 1, FLEXCOMM_SPI = 2, FLEXCOMM_I2C = 3, FLEXCOMM_UART_I2C = 7 } FlexCommPeripheralType;
 typedef enum { UART_EVEN_PARITY = 0, UART_ODD_PARITY = 1} UARTParity;
@@ -193,7 +193,7 @@ typedef enum { UART_EVEN_PARITY = 0, UART_ODD_PARITY = 1} UARTParity;
 static const int fifo_size[8] = { 1, 4, 8, 16, 32, 64, 128, 256 };
 
 int init_debug_uart(const uint32_t baud_rate) {
-	(void) baud_rate;
+	if (baud_rate != 115200) return -DEBUG_UART_UNSUPPORTED_BAUD_RATE;
 
 	int err = enable_sirc_clk();
 	if (err) return -DEBUG_UART_INIT_FAIL;
@@ -201,6 +201,7 @@ int init_debug_uart(const uint32_t baud_rate) {
 	set_ahb_clk_ctrl(1, (1U << FC4));
 	enable_flexcomm_clock(4, 2);
 
+	set_ahb_clk_ctrl(0, (1U << PORT1));
 	err = set_pin_function(1, 8, (0x02U << 8));
 	if (err) return -DEBUG_UART_INIT_FAIL;
 	err = set_pin_function(1, 9, (0x02U << 8));
@@ -243,9 +244,9 @@ int init_debug_uart(const uint32_t baud_rate) {
 	uart_fifo -> tx_flush = 1;
 
 	// Enable parity bit even/odd
-	// TODO: extend bit payload size (e.g. 8 bits -> 9 bits, data + parity bit)
-	// uart_ctrl -> pt = UART_ODD_PARITY; // UART_EVEN_PARITY;
-	// uart_ctrl -> pe = 1;
+	uart_ctrl -> m = 1;
+	uart_ctrl -> pt = UART_ODD_PARITY; // UART_EVEN_PARITY;
+	uart_ctrl -> pe = 1;
 
 	// Enable TX and RX
 	uart_ctrl -> re = 1;
@@ -260,8 +261,9 @@ int send_uart(const void* data, const unsigned int size) {
 	volatile uart_stat_t* uart_stat = (uart_stat_t*) (lp_uart4_addr + uart_stat_addr);
 	volatile uart_data_t* uart_data = (uart_data_t*) (lp_uart4_addr + uart_data_addr);
 
+	uart_fifo -> tx_flush = 1;
+
 	for (unsigned int i = 0; i < size; ++i) {
-		unsigned int cnt = 0;
 		while (!uart_stat -> tdre) delay_us(1);
 		uart_data -> data = ((uint8_t*) data)[i];
 		if (uart_data -> fretsc || uart_data -> parity_err || uart_data -> noisy) return -DEBUG_UART_TX_FAIL;

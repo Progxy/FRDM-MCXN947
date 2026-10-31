@@ -265,14 +265,12 @@ int recv_i3c(void* data, const unsigned int size) {
 	return I3C_OK;
 }
 
-__attribute__((section(".after_vectors.i3c0_handler"), naked, noreturn))
-void i3c0_handler(void) {
+__attribute__((section(".after_vectors.i3c0_handler"), naked, noreturn)) void i3c0_handler(void) {
 	__asm__ volatile("bkpt");
 	__asm__ volatile("bx lr");
 }
 
-__attribute__((section(".after_vectors.i3c1_handler"), naked, noreturn))
-void i3c1_handler(void) {
+__attribute__((section(".after_vectors.i3c1_handler"), naked, noreturn)) void i3c1_handler(void) {
 	__asm__ volatile("bkpt");
 	__asm__ volatile("bx lr");
 }

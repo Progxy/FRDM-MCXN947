@@ -1,7 +1,7 @@
 #ifndef _GPIO_H_
 #define _GPIO_H_
 
-#include "./syscon.h"
+#include <syscon.h>
 
 typedef enum {
   INPUT  = 0,
@@ -48,13 +48,13 @@ void set_gpio_pin_data(PinState state, unsigned int gpio_bank, unsigned int gpio
 
 void init_gpio_banks(void) {
 	// Enable CLK ctrl for gpio bank 0..4
-	set_enable_clk_ctrl(0, (1U << 19) | (1U << 20) | (1U << 21) | (1U << 22) | (1U << 23));
+	set_ahb_clk_ctrl(0, (1U << GPIO0) | (1U << GPIO1) | (1U << GPIO2) | (1U << GPIO3) | (1U << GPIO4));
  	return;
 }
 
 void init_gpio_bank(unsigned int gpio_bank) {
 	if (gpio_bank > 4) return;
-	set_enable_clk_ctrl(0, 1U << (19 + gpio_bank));
+	set_ahb_clk_ctrl(0, 1U << (GPIO0 + gpio_bank));
  	return;
 }
 

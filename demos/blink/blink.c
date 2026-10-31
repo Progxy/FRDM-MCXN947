@@ -1,4 +1,3 @@
-#include <stddef.h>
 #include <utils.h>
 #include <gpio.h>
 

@@ -54,7 +54,7 @@ void insert_next_block(block_hdr_t* first_block, block_hdr_t* last_block) {
 	return;
 }
 
-void* calloc(unsigned int size, unsigned int nmemb) {
+__attribute__((alloc_size(1, 2))) void* calloc(unsigned int size, unsigned int nmemb) {
 	const unsigned int tot_size = size * nmemb;
 	const unsigned int block_size = tot_size / BLOCK_SIZE + 1 - (tot_size % BLOCK_SIZE == 0);
 	if (block_size == 0) return NULL;
@@ -125,13 +125,13 @@ void free(void* ptr) {
 	return;
 }
 
-void* realloc(void* old_ptr, unsigned int size, unsigned int nmemb) {
-	if (old_ptr == NULL) return calloc(size, nmemb);
+__attribute__((alloc_size(2))) void* realloc(void* old_ptr, unsigned int size) {
+	if (old_ptr == NULL) return calloc(size, 1);
 	else if (((block_hdr_t*) old_ptr - 1) < (block_hdr_t*) mem_base || old_ptr > mem_end) return NULL;
 
-	void* ptr = calloc(size, nmemb);
+	void* ptr = calloc(size, 1);
 	if (ptr == NULL) {
-		if ((ptr = extend(old_ptr, size * nmemb))) return ptr;
+		if ((ptr = extend(old_ptr, size))) return ptr;
 		free(old_ptr);
 		return NULL;
 	}

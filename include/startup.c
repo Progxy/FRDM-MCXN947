@@ -1,6 +1,8 @@
+#ifndef _STARTUP_H_
+#define _STARTUP_H_
+
 #include <stdint.h>
 #include <stddef.h>
-#include <utils.h>
 
 extern void _stack(void);
 extern uint32_t _sidata;
@@ -232,7 +234,22 @@ const uint32_t vector_table[] = {
 	(uint32_t) default_handler
 };
 
-__attribute__((section(".after_vectors.reset"), naked))
+__attribute__((weak)) void memcpy(void* dest, void* src, int size) {
+	if (dest == NULL || src == NULL) return;
+	uint8_t* dest_b = (uint8_t*) dest;
+	uint8_t* src_b  = (uint8_t*) src;
+	while (size--) *dest_b++ = *src_b++;
+	return;
+}
+
+__attribute__((weak)) void memset(void* dest, uint8_t value, int size) {
+	if (dest == NULL) return;
+	uint8_t* dest_b = (uint8_t*) dest;
+	while (size--) *dest_b++ = value;
+	return;
+}
+
+__attribute__((section(".after_vectors.reset"), naked, noreturn))
 void reset_handler(void) {
     __asm volatile("cpsid i");
 
@@ -247,7 +264,7 @@ void reset_handler(void) {
 
     main();
 
- 	while (TRUE);
+ 	__asm__ volatile("bx lr");
 }
 
 __attribute__((section(".after_vectors.default_handler"), naked, noreturn))
@@ -261,3 +278,5 @@ void hard_fault_handler(void) {
 	__asm__ volatile("bkpt");
     __asm__ volatile("bx lr");
 }
+
+#endif //_STARTUP_H_

@@ -69,6 +69,13 @@ or simply:
 c
 ```
 
+## Utilities
+
+### Debug UART
+
+In order to read/receive data using the debug UART, use the `utilities/debug_console.py` python script, 
+which only requires the `pyserial` package that can be installed via `pip`.
+
 ## Repository Structure
 
 Each demo is kept small and self-contained, focusing on a particular **MCXN947 peripheral, subsystem, or bare-metal feature**.
@@ -77,6 +84,7 @@ Each demo is kept small and self-contained, focusing on a particular **MCXN947 p
 .
 ├── build/
 ├── include/
+├── utilities/
 ├── demos/
 ├── Makefile
 ├── main.c
