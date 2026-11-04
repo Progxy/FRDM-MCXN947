@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+extern int (*__init_array_start[])(void);
+extern int (*__init_array_end[])(void);
 extern void _stack(void);
 extern uint32_t _sidata;
 extern uint32_t _sdata;
@@ -249,6 +251,17 @@ __attribute__((weak)) void memset(void* dest, uint8_t value, int size) {
 	return;
 }
 
+int __libs_init_array(void) {
+    const unsigned int count = __init_array_end - __init_array_start;
+    for (unsigned int i = 0; i < count; i++) {
+        if (__init_array_start[i] != 0 && __init_array_start[i] != (void*)-1) {
+            int err = __init_array_start[i]();
+            if (err) return err;
+        }
+    }
+    return 0;
+}
+
 __attribute__((section(".after_vectors.reset"), naked, noreturn))
 void reset_handler(void) {
     __asm volatile("cpsid i");
@@ -261,6 +274,9 @@ void reset_handler(void) {
     memset(&_sbss, 0, bss_size);
 
 	__asm volatile("cpsie i");
+
+	int err = __libs_init_array();
+	if (err) __asm__("bkpt");
 
     main();
 

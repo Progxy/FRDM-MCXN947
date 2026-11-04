@@ -2,12 +2,13 @@
 #define _I3C_H_
 
 #include <stdint.h>
-#include "./utils.h"
+#include <utils.h>
 #include <clock.h>
 
-typedef enum { I3C_OK = 0, I3C_FAIL = 1, I3C_INVALID_BUFFER = 2, I3C_SLAVE_NACK = 3 } I3CErrors;
+typedef enum { I3C_OK = 0, I3C_FAIL = 1, I3C_INVALID_BUFFER, I3C_SLAVE_NACK, I3C_INIT_FAIL, I3C_INVALID_INTERFACE } I3CErrors;
 typedef enum { I3C0 = 0, I3C1 = 1 } I3CInterface;
 
+const unsigned int i3c_addrs[2] = { 0x40021000, 0x40022000 };
 const unsigned int i3c0_addr = 0x40021000;
 const unsigned int i3c1_addr = 0x40022000;
 
@@ -58,7 +59,7 @@ typedef struct {
 } __attribute__((packed)) mintset_t;
 
 typedef struct {
-	uint8_t request: 2;
+	uint8_t request: 3;
 	uint8_t rsv: 1;
 	uint8_t type: 2;
 	uint8_t ibi_resp: 2;
@@ -107,36 +108,59 @@ typedef struct {
 	uint8_t rsv5;
 } __attribute__((packed)) merrwarn_t;
 
+typedef struct {
+	uint8_t flush_tb: 1;
+	uint8_t flush_fb: 1;
+	uint8_t rsv: 1;
+	uint8_t unlock: 1;
+	uint8_t tx_trig: 2;
+	uint8_t rx_trig: 2;
+	uint8_t rsv1;
+	uint8_t tx_count;
+	uint8_t rx_count: 5;
+	uint8_t rsv2: 1;
+	uint8_t tx_full: 1;
+	uint8_t rx_empty: 1;
+} __attribute__((packed)) mdata_ctrl_t;
+
 typedef enum { I3C_ON, I3C_OFF, I3C_CAPABLE, I2C } I3CControllerMode;
 typedef enum { I3C_REQ = 0, I2C_REQ = 1, I3C_DDR_REQ = 2 } I3CRequestType;
 typedef enum { I3C_READ = 0, I3C_WRITE = 1 } I3CDirection;
 typedef enum { I3C_ACK = 0, I3C_NACK = 1, I3C_ACK_MB = 2, I3C_MANUAL = 3 } I3CIbiResponse;
 typedef enum { I3C_NONE = 0, I3C_EMIT_START_ADDR = 1, I3C_EMIT_STOP = 2, I3C_IBI_ACK_NACK = 3, I3C_PROCESS_DAA = 4, I3C_FORCE_EXIT_AND_TARGET_RESET = 6, I3C_AUTO_IBI = 7 } I3CRequest;
 
-static_assert(sizeof(mconfig_t)  == 4, "Size must be 4 bytes");
-static_assert(sizeof(mintset_t)  == 4, "Size must be 4 bytes");
-static_assert(sizeof(mstatus_t)  == 4, "Size must be 4 bytes");
-static_assert(sizeof(mctrl_t)    == 4, "Size must be 4 bytes");
-static_assert(sizeof(merrwarn_t) == 4, "Size must be 4 bytes");
+static_assert(sizeof(mconfig_t)    == 4, "Size must be 4 bytes");
+static_assert(sizeof(mintset_t)    == 4, "Size must be 4 bytes");
+static_assert(sizeof(mstatus_t)    == 4, "Size must be 4 bytes");
+static_assert(sizeof(mctrl_t)      == 4, "Size must be 4 bytes");
+static_assert(sizeof(merrwarn_t)   == 4, "Size must be 4 bytes");
+static_assert(sizeof(mdata_ctrl_t) == 4, "Size must be 4 bytes");
 
 // NOTE: The I3C Registers require 32-bit access both in read and write mode.
-void init_i3c(void) {
+__attribute((constructor(103))) int init_i3c(void) {
 	// Enable clock with syscon, ensure that the clock runs at 24Mhz
 	ClkFreq clk_freq = get_firc_clk_freq();
 	uint8_t clk_div = 0x01 + clk_freq * 4;
 	set_i3c0_clock(0x3, clk_div);
 	set_i3c1_clock(0x3, clk_div);
 	set_ahb_clk_ctrl(3, (1U << I3C_0) | (1U << I3C_1));
-	// Enable P1_16 P1_17 with alternative function 10, also enable port 1 clock?
+
+	// Should also do the same for I3C0 pins?
+	set_ahb_clk_ctrl(0, (1U << PORT1));
+	int err = set_pin_function(1, 16, (10U << 8));
+	if (err) return -I3C_INIT_FAIL;
+	err = set_pin_function(1, 17, (10U << 8));
+	if (err) return -I3C_INIT_FAIL;
 
 	mconfig_t mconfig_ = {0};
 	mconfig_.mstena = I2C;
 	mconfig_.hkeep = 2;
-	mconfig_.ppbaud = 0;  // Each clock period is equal to 1 ppbaud, effectively halve the input clock
-	mconfig_.odbaud = 23; // Divide the ppbaud period down so that the odbauds period is 1us
+	mconfig_.ppbaud = 3;
+	mconfig_.pplow = 0;
+	mconfig_.odbaud = 2;
 	mconfig_.odstop = 1;
 	mconfig_.odhpp = 0;
-	mconfig_.i2c_baud = 9; // Divide the odbaud so that each i2baud period is 4us, and add an extra odbaud period to the low signal (so 4us + 1us)
+	mconfig_.i2c_baud = 9;
 	mconfig_.skew = 0;
 
 	volatile mconfig_t* mconfig_i3c0 = (mconfig_t*) (i3c0_addr + mconfig_addr);
@@ -144,23 +168,23 @@ void init_i3c(void) {
 	*mconfig_i3c0 = mconfig_;
 	*mconfig_i3c1 = mconfig_;
 
-	mintset_t mintset_ = {0};
-	mintset_.slv_start = 1;
-	mintset_.ibi_won = 1;
-	mintset_.err_warn = 1;
-	// NOTE: rather than handling read/writes using interrupt/asynchronously, we may rather
-	//       use a polling/synchronous approach
-	mintset_.rx_pend = 1;
-	mintset_.tx_not_full = 1;
-	mintset_.mctrl_done = 1;
-	mintset_.complete = 1;
+// 	mintset_t mintset_ = {0};
+// 	mintset_.slv_start = 1;
+// 	mintset_.ibi_won = 1;
+// 	mintset_.err_warn = 1;
+// 	// NOTE: rather than handling read/writes using interrupt/asynchronously, we may rather
+// 	//       use a polling/synchronous approach
+// 	mintset_.rx_pend = 1;
+// 	mintset_.tx_not_full = 1;
+// 	mintset_.mctrl_done = 1;
+// 	mintset_.complete = 1;
+//
+// 	volatile mintset_t* mintset_i3c0 = (mintset_t*) (i3c0_addr + mint_set_addr);
+// 	volatile mintset_t* mintset_i3c1 = (mintset_t*) (i3c1_addr + mint_set_addr);
+// 	*mintset_i3c0 = mintset_;
+// 	*mintset_i3c1 = mintset_;
 
-	volatile mintset_t* mintset_i3c0 = (mintset_t*) (i3c0_addr + mint_set_addr);
-	volatile mintset_t* mintset_i3c1 = (mintset_t*) (i3c1_addr + mint_set_addr);
-	*mintset_i3c0 = mintset_;
-	*mintset_i3c1 = mintset_;
-
-	return;
+	return I3C_OK;
 }
 
 int init_i2c_tx(const uint8_t addr) {
@@ -176,8 +200,9 @@ int init_i3c_tx(const uint8_t addr) {
 #define send_i2c(addr, data, size, emit_stop) __send_i2c(I3C0, addr, data, size, emit_stop)
 int __send_i2c(const I3CInterface interface, const uint8_t addr, const void* data, const unsigned int size, const uint8_t emit_stop) {
 	if (data == NULL || size == 0) return -I3C_INVALID_BUFFER;
+	else if (interface > I3C1) return -I3C_INVALID_INTERFACE;
 
-	const unsigned int i3c_addr = i3c0_addr + interface * 0x1000;
+	const unsigned int i3c_addr = i3c_addrs[interface];
 	volatile mctrl_t* mctrl = (mctrl_t*) (i3c_addr + mctrl_addr);
 	mctrl_t mctrl_ = *mctrl;
 	mctrl_.request = I3C_EMIT_START_ADDR;
@@ -185,7 +210,7 @@ int __send_i2c(const I3CInterface interface, const uint8_t addr, const void* dat
 	mctrl_.ibi_resp = I3C_ACK;
 	mctrl_.dir = I3C_WRITE;
 	mctrl_.addr = addr;
-	mctrl_.rd_term = size;
+	mctrl_.rd_term = 1;
 	*mctrl = mctrl_;
 
 	volatile uint32_t* mwdatab  = (uint32_t*)  (i3c_addr + mwdatab_addr);
@@ -199,8 +224,18 @@ int __send_i2c(const I3CInterface interface, const uint8_t addr, const void* dat
 	while (!mstatus -> tx_not_full) delay_us(1);
 	*mwdatabe = ((uint8_t*) data)[size - 1];
 
-	mstatus_t st = *mstatus;
-	while (!(mstatus -> complete || mstatus -> err_warn)) delay_us(1);
+	volatile mdata_ctrl_t* md_ = (mdata_ctrl_t*) (i3c_addr + mdata_ctrl_addr);
+	unsigned int cnt = 0;
+	while (!(mstatus -> complete || mstatus -> err_warn)) {
+		delay_us(1);
+		mdata_ctrl_t md = *md_;
+		mstatus_t sd = *mstatus;
+		if (cnt++ < 1000) continue;
+		__asm__("bkpt");
+		if (md.rx_empty) continue;
+		else if (sd.state) continue;
+	}
+
 	if (mstatus -> err_warn) {
 		merrwarn_t* merrwarn = (merrwarn_t*) (i3c_addr + merr_warn_addr);
 		if (merrwarn -> nack) return -I3C_SLAVE_NACK;
@@ -227,8 +262,9 @@ int send_i3c(const void* data, const unsigned int size) {
 #define recv_i2c(addr, data, size, emit_stop) __recv_i2c(I3C0, addr, data, size, emit_stop)
 int __recv_i2c(const I3CInterface interface, const uint8_t addr, void* data, const unsigned int size, const uint8_t emit_stop) {
 	if (data == NULL || size == 0) return -I3C_INVALID_BUFFER;
+	else if (interface > I3C1) return -I3C_INVALID_INTERFACE;
 
-	const unsigned int i3c_addr = i3c0_addr + interface * 0x1000;
+	const unsigned int i3c_addr = i3c_addrs[interface];
 	volatile mctrl_t* mctrl = (mctrl_t*) (i3c_addr + mctrl_addr);
 	mctrl_t mctrl_ = *mctrl;
 	mctrl_.request = I3C_EMIT_START_ADDR;
@@ -246,7 +282,12 @@ int __recv_i2c(const I3CInterface interface, const uint8_t addr, void* data, con
 		((uint8_t*) data)[i] = *mrdatab;
 	}
 
-	while (!mstatus -> complete) delay_us(1);
+	while (!(mstatus -> complete || mstatus -> err_warn)) delay_us(1);
+	if (mstatus -> err_warn) {
+		merrwarn_t* merrwarn = (merrwarn_t*) (i3c_addr + merr_warn_addr);
+		if (merrwarn -> nack) return -I3C_SLAVE_NACK;
+		return -I3C_FAIL;
+	}
 
 	if (emit_stop) mctrl_.request = I3C_EMIT_STOP;
 	else           mctrl_.request = I3C_EMIT_START_ADDR;

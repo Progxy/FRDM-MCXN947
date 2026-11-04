@@ -288,7 +288,7 @@ const unsigned int usb_portsc1_offset = 0x184;
 #define MAX_PACKET_SIZE 512
 #define MAX_ENDPTS 32
 
-__attribute__((aligned(2048)))endpoint_queue_head_t device_queue_heads[MAX_ENDPTS] = {0};
+__attribute__((aligned(2048))) endpoint_queue_head_t device_queue_heads[MAX_ENDPTS] = {0};
 endpoint_transfer_descriptor_t* endpts_tdt_heads[MAX_ENDPTS] = {0};
 
 int init_transfer_descriptor(endpoint_transfer_descriptor_t* tdt, const uint8_t* buf, const uint16_t total_bytes) {
@@ -611,8 +611,6 @@ void handle_iso_response(void) {
 
 #define init_default_usb_device() init_usb_device(0, NULL, NULL)
 int init_usb_device(const uint8_t endpts_cnt, const USBType* usb_types, const uint8_t* mults) {
-	allocator_init();
-
 	int err = change_dcdc_voltage_lvl(0x02);
 	if (err) return err;
 

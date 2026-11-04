@@ -143,8 +143,8 @@ __attribute__((alloc_size(2))) void* realloc(void* old_ptr, unsigned int size) {
 	return ptr;
 }
 
-void allocator_init(void) {
-	if (mem_base && mem_end) return;
+__attribute__((constructor(101))) int allocator_init(void) {
+	if (mem_base && mem_end) return 0;
 	mem_base = (void*) (&_ram_start);
 	mem_end  = (void*) (&_ram_end);
 	const unsigned int mem_size = (unsigned int) (mem_end - mem_base);
@@ -154,7 +154,7 @@ void allocator_init(void) {
 	first_block -> next_block = NULL;
 	first_block -> prev_block = NULL;
 	first_block -> is_free = TRUE;
-	return;
+	return 0;
 }
 
 #endif //_ALLOC_H_

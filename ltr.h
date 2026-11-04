@@ -83,11 +83,11 @@ static uint8_t gain                             = 0x01;
 static als_uvs_meas_rate_t als_uvs_meas_rate = {0};
 
 static uint8_t ltr_read_register(uint8_t reg, bool terminate) {
-	uint8_t status = send_i2c(LTR_ADDRESS, &reg, 1, FALSE);
+	uint8_t status = __send_i2c(I3C1, LTR_ADDRESS, &reg, 1, FALSE);
 	if (status) __asm__("bkpt");
 
 	uint8_t data = 0;
-	status = recv_i2c(LTR_ADDRESS, &data, 1, terminate);
+	status = __recv_i2c(I3C1, LTR_ADDRESS, &data, 1, terminate);
 	if (status) __asm__("bkpt");
 
 	return data;
@@ -95,7 +95,7 @@ static uint8_t ltr_read_register(uint8_t reg, bool terminate) {
 
 static void ltr_write_register(uint8_t reg, uint8_t data) {
 	uint8_t d[2] = {reg, data};
-	uint8_t status = send_i2c(LTR_ADDRESS, d, 2, TRUE);
+	uint8_t status = __send_i2c(I3C1, LTR_ADDRESS, d, 2, TRUE);
 	if (status) __asm__("bkpt");
 	return;
 }
