@@ -580,11 +580,14 @@ int init_enet_mac(void) {
 }
 
 int init_enet_clock(void) {
-	int err = update_spll_clk_freq(3, 2, 25, 0);
+	int err = update_spll_clk_freq(3, 2, 25, 0); // Set PLL1_clk0 to 100MHz
 	if (err) return -ENET_INIT_FAIL;
 
-	enet_rmii_clk_select(0x02); // 0x05
+	set_pll1_clk0_div(0x00);
+	enet_rmii_clk_select(0x05);
+	set_enet_rmii_clk_div(0x02); // Divide the clock down to 50MHz
 	enet_ptp_ref_clk_select(0x04);
+	set_enet_ptp_ref_clk_div(0x00);
 
 	return ENET_OK;
 }

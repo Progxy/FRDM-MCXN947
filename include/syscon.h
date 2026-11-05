@@ -17,6 +17,9 @@ const unsigned int syscon_i3c1_clock_div = 0xB40;
 const unsigned int syscon_enet_sbd_flow_ctrl = 0x5C4;
 const unsigned int enet_rmii_clk_sel_addr = 0x5B0;
 const unsigned int enet_ptp_ref_clk_sel_addr = 0x5B8;
+const unsigned int syscon_pll1_clk0_div_addr = 0x3E4;
+const unsigned int syscon_enet_rmii_clk_div_addr = 0x5B4;
+const unsigned int syscon_enet_ptp_ref_clk_div_addr = 0x5BC;
 
 typedef enum { ROM = 1, RAMB, RAMC, RAMD, RAME, RAMF, RAMG, RAMH, FMU, FMC, FLEXSPI, MUX, PORT0, PORT1, PORT2, PORT3, PORT4, GPIO0 = 19, GPIO1, GPIO2, GPIO3, GPIO4, PINT = 25, DMA0, CRC, WWDT0, WWDT1, MAILBOX = 31 } AHBControlClocks0;
 typedef enum { MRT = 0, OSTIMER, ADC0, ADC1, DAC0, RTC, EVSIM0 = 8, EVSIM1, UTICK, FC0, FC1, FC2, FC3, FC4, FC5, FC6, FC7, FC8, FC9, MICFIL, TIMER2, USB0_FS_DCD = 24, USB0_FS, TIMER0, TIMER1, SMART_DMA = 31 } AHBControlClocks1;
@@ -102,6 +105,24 @@ void enet_rmii_clk_select(uint8_t val) {
 void enet_ptp_ref_clk_select(uint8_t val) {
 	volatile uint32_t* enet_ptp_ref_clk_sel = (uint32_t*) (syscon_addr + enet_ptp_ref_clk_sel_addr);
 	*enet_ptp_ref_clk_sel = val & 0x03;
+	return;
+}
+
+void set_pll1_clk0_div(const uint8_t div_val) {
+	volatile uint32_t* pll1_clk0_div = (uint32_t*) (syscon_addr + syscon_pll1_clk0_div_addr);
+	*pll1_clk0_div = ((div_val == 0) << 30) | (div_val - 1);
+	return;
+}
+
+void set_enet_rmii_clk_div(const uint8_t div_val) {
+	volatile uint32_t* enet_rmii_clk_div = (uint32_t*) (syscon_addr + syscon_enet_rmii_clk_div_addr);
+	*enet_rmii_clk_div = ((div_val == 0) << 30) | (div_val - 1);
+	return;
+}
+
+void set_enet_ptp_ref_clk_div(const uint8_t div_val) {
+	volatile uint32_t* enet_ptp_ref_clk_div = (uint32_t*) (syscon_addr + syscon_enet_ptp_ref_clk_div_addr);
+	*enet_ptp_ref_clk_div = ((div_val == 0) << 30) | (div_val - 1);
 	return;
 }
 
