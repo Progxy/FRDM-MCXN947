@@ -94,8 +94,8 @@ int enable_usb_phy(void) {
 	int err = update_sosc_clk_freq(SOSC_20_30MHZ);
 	if (err) return -1;
 
-	clock_ctrl_set(SYSCON_CLKIN_ENA_FM_USBH_LPT_MASK | SYSCON_CLKIN_ENA_MASK);
-	set_enable_clk_ctrl(2, (1U << 16) | (1U << 17));
+	clock_ctrl_set((1U << CLKIN_ENA_FM_USBH_LPT) | (1U << CLKIN_ENA) | (1U << FRO1MHZ_CLK_ENA));
+	set_ahb_clk_ctrl(2, (1U << USB_HS) | (1U << USB_HS_PHY));
 
 	usb_phy_ctrl_clr -> sftrst = 1;
 	usb_phy_ctrl_clr -> clkgate = 1;

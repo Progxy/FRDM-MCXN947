@@ -275,6 +275,7 @@ void reset_handler(void) {
 
 	__asm volatile("cpsie i");
 
+	__asm__("bkpt");
 	int err = __libs_init_array();
 	if (err) __asm__("bkpt");
 

@@ -47,6 +47,7 @@ const unsigned int mac_q0_tx_fctrl_reg_addr = 0x70;
 const unsigned int mac_inte_reg_addr = 0xB4;
 const unsigned int mac_config_reg_addr = 0x00;
 
+
 typedef struct {
 	uint8_t swr: 1;
 	uint8_t da: 1;
@@ -364,6 +365,9 @@ __attribute__((aligned(4))) dma_rf_rdes_t ch0_rx_desc_rb[DMA_DESC_RB_SIZE] = {0}
 __attribute__((aligned(4))) dma_rf_tdes_t ch1_tx_desc_rb[DMA_DESC_RB_SIZE] = {0};
 __attribute__((aligned(4))) dma_rf_rdes_t ch1_rx_desc_rb[DMA_DESC_RB_SIZE] = {0};
 
+__attribute__((aligned(4))) uint8_t ch0_rx_bufs[DMA_DESC_RB_SIZE * 2 * RECEIVE_BUFFER_SIZE] = {0};
+__attribute__((aligned(4))) uint8_t ch1_rx_bufs[DMA_DESC_RB_SIZE * 2 * RECEIVE_BUFFER_SIZE] = {0};
+
 int init_enet_dma(void) {
 	volatile uint32_t* dma_mode_reg = (uint32_t*) (enet0_addr + dma_mode_reg_addr);
 	dma_mode_t dma_mode = *(dma_mode_t*)dma_mode_reg;
@@ -384,8 +388,20 @@ int init_enet_dma(void) {
 	memset(ch0_rx_desc_rb, 0, sizeof(dma_rf_rdes_t) * DMA_DESC_RB_SIZE);
 	memset(ch1_tx_desc_rb, 0, sizeof(dma_rf_tdes_t) * DMA_DESC_RB_SIZE);
 	memset(ch1_rx_desc_rb, 0, sizeof(dma_rf_rdes_t) * DMA_DESC_RB_SIZE);
+	memset(ch0_rx_bufs, 0, sizeof(ch0_rx_bufs));
+	memset(ch1_rx_bufs, 0, sizeof(ch1_rx_bufs));
 	for (unsigned int i = 0; i < DMA_DESC_RB_SIZE - 1; ++i) {
+		ch0_rx_desc_rb[i].buf1_ap = (uint32_t) ch0_rx_bufs + RECEIVE_BUFFER_SIZE * i * 2;
+		ch0_rx_desc_rb[i].buf2_ap = (uint32_t) ch0_rx_bufs + RECEIVE_BUFFER_SIZE * i * 2 + 1;
+		ch0_rx_desc_rb[i].buf1v = 1;
+		ch0_rx_desc_rb[i].buf2v = 1;
+		ch0_rx_desc_rb[i].ioc = 1;
 		ch0_rx_desc_rb[i].own = 1;
+		ch1_rx_desc_rb[i].buf1_ap = (uint32_t) ch1_rx_bufs + RECEIVE_BUFFER_SIZE * i * 2;
+		ch1_rx_desc_rb[i].buf2_ap = (uint32_t) ch1_rx_bufs + RECEIVE_BUFFER_SIZE * i * 2 + 1;
+		ch1_rx_desc_rb[i].buf1v = 1;
+		ch1_rx_desc_rb[i].buf2v = 1;
+		ch1_rx_desc_rb[i].ioc = 1;
 		ch1_rx_desc_rb[i].own = 1;
 	}
 
@@ -420,8 +436,8 @@ int init_enet_dma(void) {
 
 	volatile uint32_t* dma_ch0_rx_tail_ptr = (uint32_t*) (enet0_addr + dma_ch0_rx_tail_ptr_reg_addr);
 	volatile uint32_t* dma_ch1_rx_tail_ptr = (uint32_t*) (enet0_addr + dma_ch1_rx_tail_ptr_reg_addr);
-	*dma_ch0_rx_tail_ptr = ((uint32_t) ch0_rx_desc_rb) & 0xFFF4;
-	*dma_ch1_rx_tail_ptr = ((uint32_t) ch1_rx_desc_rb) & 0xFFF4;
+	*dma_ch0_rx_tail_ptr = ((uint32_t) (ch0_rx_desc_rb + DMA_DESC_RB_SIZE - 1)) & 0xFFF4;
+	*dma_ch1_rx_tail_ptr = ((uint32_t) (ch1_rx_desc_rb + DMA_DESC_RB_SIZE - 1)) & 0xFFF4;
 
 	dma_ch_ctrl_t dma_ch_ctrl = {0};
 	dma_ch_ctrl.pblx8 = 1;
@@ -563,20 +579,32 @@ int init_enet_mac(void) {
 	return ENET_OK;
 }
 
+int init_enet_clock(void) {
+	int err = update_spll_clk_freq(3, 2, 25, 0);
+	if (err) return -ENET_INIT_FAIL;
+
+	enet_rmii_clk_select(0x02); // 0x05
+	enet_ptp_ref_clk_select(0x04);
+
+	return ENET_OK;
+}
+
 __attribute__((constructor(104))) int init_enet(void) {
 	set_ahb_clk_ctrl(0, (1U << PORT0) | (1U << PORT1) | (1U << PORT2) | (1U << PORT3) | (1U << PORT4));
 	set_ahb_clk_ctrl(2, (1U << ENET));
 	set_peripheral_reset_ctrl(2, (1U << ENET_RST));
-	set_enet_phy_interface(ENET_MII_PHY);
+	set_enet_phy_interface(ENET_RMII_PHY);
 
-	// TODO: Check P1_2-P1_21 ALT pin assignment 9
 	int err = 0;
 	for (unsigned int i = 2; i < 22; ++i) {
 		err = set_pin_function(1, i, (9U << 8));
 		if (err) return -ENET_INIT_FAIL;
 	}
 
-	// TODO: Set the sideband flow control for each channel.
+	err = init_enet_clock();
+	if (err) return -ENET_INIT_FAIL;
+
+	set_enet_sbd_flow_ctrl(0x03);
 
 	err = init_enet_dma();
 	if (err) return -ENET_INIT_FAIL;
@@ -586,6 +614,8 @@ __attribute__((constructor(104))) int init_enet(void) {
 
 	err = init_enet_mac();
 	if (err) return -ENET_INIT_FAIL;
+
+	set_enet_sbd_flow_ctrl(0x00);
 
 	return ENET_OK;
 }

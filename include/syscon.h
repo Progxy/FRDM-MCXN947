@@ -14,6 +14,9 @@ const unsigned int syscon_enet_phy_intf_sel = 0x5C0;
 const unsigned int syscon_clock_ctrl_offset = 0xA18;
 const unsigned int syscon_i3c1_clock_sel = 0xB30;
 const unsigned int syscon_i3c1_clock_div = 0xB40;
+const unsigned int syscon_enet_sbd_flow_ctrl = 0x5C4;
+const unsigned int enet_rmii_clk_sel_addr = 0x5B0;
+const unsigned int enet_ptp_ref_clk_sel_addr = 0x5B8;
 
 typedef enum { ROM = 1, RAMB, RAMC, RAMD, RAME, RAMF, RAMG, RAMH, FMU, FMC, FLEXSPI, MUX, PORT0, PORT1, PORT2, PORT3, PORT4, GPIO0 = 19, GPIO1, GPIO2, GPIO3, GPIO4, PINT = 25, DMA0, CRC, WWDT0, WWDT1, MAILBOX = 31 } AHBControlClocks0;
 typedef enum { MRT = 0, OSTIMER, ADC0, ADC1, DAC0, RTC, EVSIM0 = 8, EVSIM1, UTICK, FC0, FC1, FC2, FC3, FC4, FC5, FC6, FC7, FC8, FC9, MICFIL, TIMER2, USB0_FS_DCD = 24, USB0_FS, TIMER0, TIMER1, SMART_DMA = 31 } AHBControlClocks1;
@@ -21,6 +24,7 @@ typedef enum { DMA1 = 1, ENET, USDHC, FLEXIO, SAI0, SAI1, FREQME = 8, FLEXCAN0 =
 typedef enum { I3C_0 = 0, I3C_1, SINC, COOL_FLUX, QDC0, QDC1, PWM0, PWM1, EVTG, DAC1 = 11, DAC2, OPAMP0, OPAMP1, OPAMP2, CMP2 = 18, VREF, COOL_FLUX_APB, NPU, TSI, EWM, EIM, ERM, INTM, SEMA42 } AHBControlClocks3;
 
 typedef enum { DMA1_RST = 1, ENET_RST, USDHC_RST, FLEXIO_RST, SAI0_RST, SAI1_RST, FREQME_RST = 8, FLEXCAN0_RST = 14, FLEXCAN1_RST, USB_HS_RST, USB_HS_PHY_RST, PQ_RST = 19, PLU_LUT_RST, TIMER3_RST, TIMER4_RST } PeripheralResetCtrl2;
+typedef enum { CLKIN_ENA_FM_USBH_LPT = 1, FRO1MHZ_ENA, FRO12MHZ_ENA, FRO_HF_ENA, CLKIN_ENA, FRO1MHZ_CLK_ENA, PLU_DEGLITCH_CLK_ENA = 9 } ClockCtrl;
 
 void set_ahb_clk_ctrl(unsigned int clk_ctrl_idx, const uint32_t value) {
   volatile uint32_t* const addr = (uint32_t*) (syscon_addr + clk_ahb_ctrl_set_offsets[clk_ctrl_idx]);
@@ -80,6 +84,24 @@ void set_peripheral_reset_ctrl(uint8_t idx, uint32_t val) {
 void set_enet_phy_interface(uint8_t interface) {
 	volatile uint32_t* enet_phy_intf_sel = (uint32_t*) (syscon_addr + syscon_enet_phy_intf_sel);
 	*enet_phy_intf_sel |= (interface & 0x01) << 2;
+	return;
+}
+
+void set_enet_sbd_flow_ctrl(uint8_t val) {
+	volatile uint32_t* enet_sbd_flow_ctrl = (uint32_t*) (syscon_addr + syscon_enet_sbd_flow_ctrl);
+	*enet_sbd_flow_ctrl = val & 0x3;
+	return;
+}
+
+void enet_rmii_clk_select(uint8_t val) {
+	volatile uint32_t* enet_rmii_clk_sel = (uint32_t*) (syscon_addr + enet_rmii_clk_sel_addr);
+	*enet_rmii_clk_sel = val & 0x03;
+	return;
+}
+
+void enet_ptp_ref_clk_select(uint8_t val) {
+	volatile uint32_t* enet_ptp_ref_clk_sel = (uint32_t*) (syscon_addr + enet_ptp_ref_clk_sel_addr);
+	*enet_ptp_ref_clk_sel = val & 0x03;
 	return;
 }
 

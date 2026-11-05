@@ -94,7 +94,7 @@ int increase_voltage_level(volatile spc_active_cfg_t* spc_active_cfg_addr, unsig
 }
 
 int decrease_voltage_level(volatile spc_active_cfg_t* spc_active_cfg_addr, unsigned int voltage_lvl) {
-	int err = update_clk_freq(MHZ_48);
+	int err = update_firc_clk_freq(MHZ_48);
 	if (err) return err;
 
 	set_fctrl_rwsc(1);

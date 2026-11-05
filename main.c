@@ -1,6 +1,7 @@
 #include <utils.h>
 #include <debug_uart.h>
 #include <enet.h>
+#include <usb.h>
 //#include "./ltr.h"
 #include "./i2c_temp_sensor.h"
 

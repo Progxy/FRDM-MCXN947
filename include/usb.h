@@ -467,7 +467,7 @@ int handle_bus_reset(void) {
 int alloc_transfer_descriptor(const uint8_t endpt_idx) {
 	if (endpt_idx > 7) return -1;
 
-	endpoint_transfer_descriptor_t* tdt = calloc(sizeof(endpoint_transfer_descriptor_t), 1);
+	endpoint_transfer_descriptor_t* tdt = calloc(1, sizeof(endpoint_transfer_descriptor_t));
 	if (tdt == NULL) return -1;
 
 	const uint8_t* buf = calloc(1, 512);

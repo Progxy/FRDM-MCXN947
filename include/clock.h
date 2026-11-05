@@ -91,16 +91,55 @@ typedef struct {
 	uint8_t rsv5: 4;
 } __attribute__((packed)) scg_sirc_csr_t;
 
+typedef struct {
+	uint8_t selr: 4;
+	uint8_t seli_low: 4;
+	uint8_t seli_high: 2;
+	uint8_t selp: 5;
+	uint8_t rsv: 1;
+	uint8_t bypass_postdiv2: 1;
+	uint8_t limup_off: 1;
+	uint8_t band_direct: 1;
+	uint8_t bypass_prediv: 1;
+	uint8_t bypass_postdiv: 1;
+	uint8_t rsv1: 1;
+	uint8_t frm: 1;
+	uint8_t rsv2: 1;
+	uint8_t rsv3: 1;
+	uint8_t source: 2;
+	uint8_t rsv4: 5;
+} __attribute__((packed)) scg_spll_ctrl_t;
+
+typedef struct {
+	uint8_t spll_pwren: 1;
+	uint8_t spll_clken: 1;
+	uint8_t spll_sten: 1;
+	uint8_t frm_clocks_table: 1;
+	uint16_t rsv: 12;
+	uint8_t spll_cm: 1;
+	uint8_t spll_cmre: 1;
+	uint8_t rsv1: 5;
+	uint8_t lk: 1;
+	uint8_t spll_lock: 1;
+	uint8_t spll_sel: 1;
+	uint8_t err: 1;
+	uint8_t rsv2: 3;
+	uint8_t spll_lock_ie: 1;
+	uint8_t rsv3: 1;
+} __attribute__((packed)) scg_spll_csr_t;
+
 typedef scg_rccr_t scg_csr_t;
 
-static_assert(sizeof(scg_csr_t) == 4,      "Size must be 4 bytes");
-static_assert(sizeof(scg_rccr_t) == 4,     "Size must be 4 bytes");
-static_assert(sizeof(scg_ldo_csr_t) == 4,  "Size must be 4 bytes");
-static_assert(sizeof(scg_firc_cfg_t) == 4, "Size must be 4 bytes");
-static_assert(sizeof(scg_firc_csr_t) == 4, "Size must be 4 bytes");
-static_assert(sizeof(scg_sosc_csr_t) == 4, "Size must be 4 bytes");
-static_assert(sizeof(scg_sosc_cfg_t) == 4, "Size must be 4 bytes");
-static_assert(sizeof(scg_sirc_csr_t) == 4, "Size must be 4 bytes");
+static_assert(sizeof(scg_csr_t)       == 4, "Size must be 4 bytes");
+static_assert(sizeof(scg_rccr_t)      == 4, "Size must be 4 bytes");
+static_assert(sizeof(scg_ldo_csr_t)   == 4, "Size must be 4 bytes");
+static_assert(sizeof(scg_firc_cfg_t)  == 4, "Size must be 4 bytes");
+static_assert(sizeof(scg_firc_csr_t)  == 4, "Size must be 4 bytes");
+static_assert(sizeof(scg_sosc_csr_t)  == 4, "Size must be 4 bytes");
+static_assert(sizeof(scg_sosc_cfg_t)  == 4, "Size must be 4 bytes");
+static_assert(sizeof(scg_sirc_csr_t)  == 4, "Size must be 4 bytes");
+static_assert(sizeof(scg_spll_ctrl_t) == 4, "Size must be 4 bytes");
+static_assert(sizeof(scg_spll_csr_t)  == 4, "Size must be 4 bytes");
 
 typedef enum { MHZ_48 = 0, MHZ_144 = 1 } ClkFreq;
 typedef enum { SOSC_16_20MHZ = 0, SOSC_20_30MHZ = 1, SOSC_30_50MHZ = 2, SOSC_50_66MHZ = 3 } SOSCFreq;
@@ -115,6 +154,12 @@ const unsigned int scg_sirc_csr_offset = 0x200;
 const unsigned int scg_firc_csr_offset = 0x300;
 const unsigned int scg_firc_cfg_offset = 0x308;
 const unsigned int scg_ldo_csr_offset = 0x800;
+const unsigned int scg_spll_ctrl_offset = 0x604;
+const unsigned int scg_spll_csr_offset = 0x600;
+const unsigned int scg_spll_mdiv_offset = 0x60C;
+const unsigned int scg_spll_ndiv_offset = 0x610;
+const unsigned int scg_spll_pdiv_offset = 0x614;
+const unsigned int scg_spll_lock_cnfg_offset = 0x618;
 
 // NOTE: only perform 32-bit writes on SCG registers otherwise we'll get a transfer error
 ClkFreq get_firc_clk_freq(void) {
@@ -209,6 +254,64 @@ int enable_sirc_clk(void) {
 
 	sirc_csr_.lock = 1;
 	*sirc_csr = sirc_csr_;
+
+	return 0;
+}
+
+// NOTE: SPLL (aka PLL1 clock) takes in input the clk_in external clock, which is a 24MHz XOSC for the FRDM-MCXN947
+int update_spll_clk_freq(const uint8_t n_div, const uint8_t p_div, const uint16_t m_div, const uint8_t pdivx2) {
+	if (n_div == 0 || p_div == 0 || m_div == 0) return -1;
+
+	volatile scg_spll_ctrl_t* spll_ctrl = (scg_spll_ctrl_t*) (scg_addr + scg_spll_ctrl_offset);
+	volatile uint32_t* spll_ndiv = (uint32_t*) (scg_addr + scg_spll_ndiv_offset);
+	volatile uint32_t* spll_pdiv = (uint32_t*) (scg_addr + scg_spll_pdiv_offset);
+	volatile uint32_t* spll_mdiv = (uint32_t*) (scg_addr + scg_spll_mdiv_offset);
+	volatile uint32_t* trim_lock = (uint32_t*) (scg_addr + scg_trim_lock_offset);
+	volatile scg_spll_csr_t* spll_csr = (scg_spll_csr_t*) (scg_addr + scg_spll_csr_offset);
+	volatile uint32_t* spll_lock_cnfg = (uint32_t*) (scg_addr + scg_spll_lock_cnfg_offset);
+
+	set_ahb_clk_ctrl(0, (1U << PORT0) | (1U << PORT1) | (1U << PORT2) | (1U << PORT3) | (1U << PORT4));
+	set_ahb_clk_ctrl(2, (1U << SCG));
+
+	// NOTE: to the FRDM-MCXN947 external clock reference pin is connected a 24MHz XOSC
+	int err = update_sosc_clk_freq(SOSC_20_30MHZ);
+	if (err) return err;
+
+	scg_spll_ctrl_t spll_ctrl_ = *spll_ctrl;
+	spll_ctrl_.source = 0;
+	spll_ctrl_.selp = 6;
+	spll_ctrl_.seli_low = 13;
+	spll_ctrl_.selr = 0;
+
+	*spll_ndiv = n_div;
+	*spll_pdiv = p_div & 0x1F;
+	*spll_mdiv = m_div;
+
+	spll_ctrl_.bypass_prediv = 0;
+	spll_ctrl_.bypass_postdiv = 0;
+	spll_ctrl_.bypass_postdiv2 = (pdivx2 ^ 0x01) & 0x01;
+	spll_ctrl_.frm = 1;
+	*spll_ctrl = spll_ctrl_;
+
+	scg_spll_csr_t spll_csr_ = *spll_csr;
+	spll_csr_.lk = 0;
+	spll_csr_.spll_cm = 1;
+	spll_csr_.spll_sten = 1;
+	*spll_csr = spll_csr_;
+	*trim_lock = 0x5A5A0001; // Disable TRIM lock mechanism
+
+	const unsigned int lock_time = 12000 / n_div;
+	*spll_lock_cnfg = lock_time + 300;
+	spll_csr_.spll_clken = 1;
+	spll_csr_.spll_pwren = 1;
+	*spll_csr = spll_csr_;
+
+	while (!spll_csr -> spll_lock) delay_us(1);
+	if (spll_csr -> err) return -1;
+
+	spll_csr_.lk = 1;
+	*spll_csr = spll_csr_;
+	*trim_lock = 0x5A5A0000; // Reenable TRIM lock mechanism
 
 	return 0;
 }
