@@ -2,8 +2,8 @@
 #define _CLOCK_H_
 
 #include <stdint.h>
-#include "./utils.h"
-#include "./syscon.h"
+#include <utils.h>
+#include <syscon.h>
 
 typedef struct {
 	uint8_t range: 1;
@@ -174,6 +174,9 @@ int update_firc_clk_freq(ClkFreq clk_freq) {
 	volatile scg_rccr_t* rccr = (scg_rccr_t*) (scg_addr + scg_rccr_offset);
 	volatile scg_csr_t*   csr = (scg_csr_t*) (scg_addr + scg_csr_offset);
 
+	set_ahb_clk_ctrl(0, (1U << PORT0) | (1U << PORT1) | (1U << PORT2) | (1U << PORT3) | (1U << PORT4));
+	set_ahb_clk_ctrl(2, (1U << SCG));
+
 	scg_firc_cfg_t firc_cfg_ = *firc_cfg;
 	firc_cfg_.range = clk_freq & 0x01;
 	*firc_cfg = firc_cfg_;
@@ -186,33 +189,32 @@ int update_firc_clk_freq(ClkFreq clk_freq) {
 	firc_csr_.firc_en = 1;
 	*firc_csr = firc_csr_;
 
-	while (!firc_csr -> firc_vld) delay_ms(5);
+	while (!firc_csr -> firc_vld) delay_us(1);
 	if (firc_csr -> firc_err) return -1;
 
 	scg_rccr_t rccr_ = *rccr;
 	rccr_.scs = 3;
 	*rccr = rccr_;
-	while (csr -> scs != 3) delay_ms(5);
+	while (csr -> scs != 3) delay_us(1);
 
 	return 0;
 }
 
 // SOSC and clk_in are the same clock (and their input reference is the external/internal clock oscillator)
-int update_sosc_clk_freq(SOSCFreq sosc_freq) {
+// clk_in connects to different modules as three functional clock source options.
+// • Ungated, clk_in goes to ADC0, ADC1, DAC0, DAC1, DAC2, CMP0, CMP1, CMP2, ENET, and FlexIO.
+// • Gated by SYSCON.CLOCK_CTRL[1], clk_in goes to FREQME, USBHS, LPTMR0, and LPTMR1
+// • Gated by SYSCON.CLOCK_CTRL[5], clk_in goes to MICFIL, EMVSIM0, EMVSIM1, CAN0, CAN1, I3C0,
+//   I3C1, SAI0, SAI1, SINC Filter (SINC), TSI, USBFS, SCT, uSDHC, and CLKOUT.
+int update_sosc_clk_freq(const SOSCFreq sosc_freq) {
 	volatile scg_sosc_csr_t* sosc_csr = (scg_sosc_csr_t*) (scg_addr + scg_sosc_csr_offset);
 	volatile scg_sosc_cfg_t* sosc_cfg = (scg_sosc_cfg_t*) (scg_addr + scg_sosc_cfg_offset);
-	volatile scg_ldo_csr_t* ldo_csr = (scg_ldo_csr_t*) (scg_addr + scg_ldo_csr_offset);
 	volatile uint32_t* trim_lock = (uint32_t*) (scg_addr + scg_trim_lock_offset);
 
 	set_ahb_clk_ctrl(0, (1U << PORT0) | (1U << PORT1) | (1U << PORT2) | (1U << PORT3) | (1U << PORT4));
 	set_ahb_clk_ctrl(2, (1U << SCG));
 
-	scg_sosc_csr_t sosc_csr_ = *sosc_csr;
-	sosc_csr_.lock = 0;
-	sosc_csr_.enable = 0;
-	*sosc_csr = sosc_csr_;
-	*trim_lock = 0x5A5A0001; // Disable TRIM lock mechanism
-
+	volatile scg_ldo_csr_t* ldo_csr = (scg_ldo_csr_t*) (scg_addr + scg_ldo_csr_offset);
 	scg_ldo_csr_t ldo_csr_ = *ldo_csr;
 	ldo_csr_.ldo_en = 1;
 	*ldo_csr = ldo_csr_;
@@ -223,13 +225,21 @@ int update_sosc_clk_freq(SOSCFreq sosc_freq) {
 	sosc_cfg_.range = sosc_freq & 0x03;
 	*sosc_cfg = sosc_cfg_;
 
+	scg_sosc_csr_t sosc_csr_ = *sosc_csr;
+	sosc_csr_.lock = 0;
+	*sosc_csr = sosc_csr_;
+	sosc_csr_.enable = 0;
+	*sosc_csr = sosc_csr_;
+	*trim_lock = 0x5A5A0001; // Disable TRIM lock mechanism
+
 	sosc_csr_.sosc_cm = 1;
 	sosc_csr_.sosc_sten = 1;
 	sosc_csr_.enable = 1;
 	*sosc_csr = sosc_csr_;
-	while (!sosc_csr -> sosc_vld) delay_us(1);
-	if (sosc_csr -> sosc_err) return -1;
 
+	while (!sosc_csr -> sosc_vld) delay_us(1);
+
+	if (sosc_csr -> sosc_err) return -1;
 	sosc_csr_.lock = 1;
 	*sosc_csr = sosc_csr_;
 	*trim_lock = 0x5A5A0000; // Reenable TRIM lock mechanism
@@ -273,14 +283,22 @@ int update_spll_clk_freq(const uint8_t n_div, const uint8_t p_div, const uint16_
 	set_ahb_clk_ctrl(0, (1U << PORT0) | (1U << PORT1) | (1U << PORT2) | (1U << PORT3) | (1U << PORT4));
 	set_ahb_clk_ctrl(2, (1U << SCG));
 
-	// NOTE: to the FRDM-MCXN947 external clock reference pin is connected a 24MHz XOSC
+	// NOTE: to the FRDM-MCXN947 internal clock oscyllator running at 24MHz
 	int err = update_sosc_clk_freq(SOSC_20_30MHZ);
 	if (err) return err;
 
 	scg_spll_ctrl_t spll_ctrl_ = *spll_ctrl;
 	spll_ctrl_.source = 0;
-	spll_ctrl_.selp = 6;
-	spll_ctrl_.seli_low = 13;
+	spll_ctrl_.selp = MIN(31, (m_div >> 2)) + 1;
+
+	uint8_t seli = 0;
+	if (m_div >= 8000) seli = 1;
+	else if (m_div >= 122) seli = 8000 / m_div;
+	else if (m_div >= 1) seli = 2 * (m_div >> 2) + 3;
+	seli = MIN(63, seli);
+
+	spll_ctrl_.seli_low = seli & 0x0F;
+	spll_ctrl_.seli_high = (seli >> 4) & 0x03;
 	spll_ctrl_.selr = 0;
 
 	*spll_ndiv = n_div;

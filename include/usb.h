@@ -2,11 +2,12 @@
 #define _USB_H_
 
 #include <stdint.h>
-#include "./utils.h"
-#include "./alloc.h"
-#include "./syscon.h"
-#include "./power.h"
-#include "./usb_phy.h"
+#include <utils.h>
+#include <alloc.h>
+#include <syscon.h>
+#include <power.h>
+#include <usb_phy.h>
+#include <nvic.h>
 
 #define USB_MAX_HW_RESETS 5
 
@@ -428,6 +429,9 @@ int reset_usb_controller(const uint8_t endpts_cnt) {
 	usb_int_enable -> pce = 1;
 	usb_int_enable -> ure = 1;
 	usb_int_enable -> sle = 1;
+
+	nvic_enable_irq(IRQ_USBHS1_PHY);
+	nvic_enable_irq(IRQ_USBHS1);
 
 	usb_status_t st = *usb_status;
 	usb_cmd -> rs = 1;

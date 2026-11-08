@@ -168,21 +168,24 @@ __attribute((constructor(103))) int init_i3c(void) {
 	*mconfig_i3c0 = mconfig_;
 	*mconfig_i3c1 = mconfig_;
 
-// 	mintset_t mintset_ = {0};
-// 	mintset_.slv_start = 1;
-// 	mintset_.ibi_won = 1;
-// 	mintset_.err_warn = 1;
-// 	// NOTE: rather than handling read/writes using interrupt/asynchronously, we may rather
-// 	//       use a polling/synchronous approach
-// 	mintset_.rx_pend = 1;
-// 	mintset_.tx_not_full = 1;
-// 	mintset_.mctrl_done = 1;
-// 	mintset_.complete = 1;
-//
-// 	volatile mintset_t* mintset_i3c0 = (mintset_t*) (i3c0_addr + mint_set_addr);
-// 	volatile mintset_t* mintset_i3c1 = (mintset_t*) (i3c1_addr + mint_set_addr);
-// 	*mintset_i3c0 = mintset_;
-// 	*mintset_i3c1 = mintset_;
+	mintset_t mintset_ = {0};
+	mintset_.slv_start = 1;
+	mintset_.ibi_won = 1;
+	mintset_.err_warn = 1;
+	// NOTE: rather than handling read/writes using interrupt/asynchronously, we may rather
+	//       use a polling/synchronous approach
+	mintset_.rx_pend = 1;
+	mintset_.tx_not_full = 1;
+	mintset_.mctrl_done = 1;
+	mintset_.complete = 1;
+
+	volatile mintset_t* mintset_i3c0 = (mintset_t*) (i3c0_addr + mint_set_addr);
+	volatile mintset_t* mintset_i3c1 = (mintset_t*) (i3c1_addr + mint_set_addr);
+	*mintset_i3c0 = mintset_;
+	*mintset_i3c1 = mintset_;
+
+	nvic_enable_irq(IRQ_I3C0);
+	nvic_enable_irq(IRQ_I3C1);
 
 	return I3C_OK;
 }

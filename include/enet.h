@@ -3,14 +3,17 @@
 
 #include <utils.h>
 #include <syscon.h>
+#include <clock.h>
+#include <port.h>
 #include <alloc.h>
+#include <nvic.h>
 
 typedef enum { ENET_OK = 0, ENET_INIT_FAIL, } ENETStatus;
 typedef enum { ENET_MII_PHY = 0, ENET_RMII_PHY = 1 } ENETInterfaceType;
 typedef enum { ENET_PBL1 = 1, ENET_PBL2 = 2, ENET_PBL4 = 4, ENET_PBL8 = 8, ENET_PBL16 = 16, ENET_PBL32 = 32 } ENETBurstLenghts;
 
-const uint16_t mac_address_high = 0x4E03;
-const uint32_t mac_address_low  = 0x304AD7EE;
+const uint16_t mac_address_high = 0x0004;
+const uint32_t mac_address_low  = 0x9F08FE0B;
 
 const unsigned int enet0_addr = 0x40100000;
 const unsigned int dma_mode_reg_addr = 0x1000;
@@ -45,8 +48,11 @@ const unsigned int mac_address0_low_addr = 0x304;
 const unsigned int mac_packet_filter_reg_addr = 0x08;
 const unsigned int mac_q0_tx_fctrl_reg_addr = 0x70;
 const unsigned int mac_inte_reg_addr = 0xB4;
+const unsigned int mac_int_status_reg_addr = 0xB0;
 const unsigned int mac_config_reg_addr = 0x00;
-
+const unsigned int mtl_int_status_reg_addr = 0xC20;
+const unsigned int dma_int_status_reg_addr = 0x1008;
+const unsigned int dma_debug_status0_reg_addr = 0x100C;
 
 typedef struct {
 	uint8_t swr: 1;
@@ -392,13 +398,13 @@ int init_enet_dma(void) {
 	memset(ch1_rx_bufs, 0, sizeof(ch1_rx_bufs));
 	for (unsigned int i = 0; i < DMA_DESC_RB_SIZE - 1; ++i) {
 		ch0_rx_desc_rb[i].buf1_ap = (uint32_t) ch0_rx_bufs + RECEIVE_BUFFER_SIZE * i * 2;
-		ch0_rx_desc_rb[i].buf2_ap = (uint32_t) ch0_rx_bufs + RECEIVE_BUFFER_SIZE * i * 2 + 1;
+		ch0_rx_desc_rb[i].buf2_ap = (uint32_t) ch0_rx_bufs + RECEIVE_BUFFER_SIZE * i * 2 + RECEIVE_BUFFER_SIZE;
 		ch0_rx_desc_rb[i].buf1v = 1;
 		ch0_rx_desc_rb[i].buf2v = 1;
 		ch0_rx_desc_rb[i].ioc = 1;
 		ch0_rx_desc_rb[i].own = 1;
 		ch1_rx_desc_rb[i].buf1_ap = (uint32_t) ch1_rx_bufs + RECEIVE_BUFFER_SIZE * i * 2;
-		ch1_rx_desc_rb[i].buf2_ap = (uint32_t) ch1_rx_bufs + RECEIVE_BUFFER_SIZE * i * 2 + 1;
+		ch1_rx_desc_rb[i].buf2_ap = (uint32_t) ch1_rx_bufs + RECEIVE_BUFFER_SIZE * i * 2 + RECEIVE_BUFFER_SIZE;
 		ch1_rx_desc_rb[i].buf1v = 1;
 		ch1_rx_desc_rb[i].buf2v = 1;
 		ch1_rx_desc_rb[i].ioc = 1;
@@ -469,17 +475,17 @@ int init_enet_dma(void) {
 	*dma_ch1_rx_ctrl_reg = *((uint32_t*) &dma_ch_rx_ctrl);
 
 	dma_ch_inte_t dma_ch_inte = {0};
-	//dma_ch_inte.tie = 1;
+	dma_ch_inte.tie = 1;
 	dma_ch_inte.txse = 1;
 	dma_ch_inte.tbue = 1;
-	//dma_ch_inte.rie = 1;
+	dma_ch_inte.rie = 1;
 	dma_ch_inte.rbue = 1;
 	dma_ch_inte.rse = 1;
 	dma_ch_inte.rwte = 1;
 	dma_ch_inte.fbee = 1;
 	dma_ch_inte.cdee = 1;
 	dma_ch_inte.aie = 1;
-	//dma_ch_inte.nie = 1;
+	dma_ch_inte.nie = 1;
 
 	volatile uint32_t* dma_ch0_inte_reg = (uint32_t*) (enet0_addr + dma_ch0_inte_reg_addr);
 	*dma_ch0_inte_reg = *((uint32_t*) &dma_ch_inte);
@@ -580,15 +586,11 @@ int init_enet_mac(void) {
 }
 
 int init_enet_clock(void) {
-	int err = update_spll_clk_freq(3, 2, 25, 0); // Set PLL1_clk0 to 100MHz
-	if (err) return -ENET_INIT_FAIL;
-
-	set_pll1_clk0_div(0x00);
-	enet_rmii_clk_select(0x05);
-	set_enet_rmii_clk_div(0x02); // Divide the clock down to 50MHz
+	clock_ctrl_clr((1U << 5) | (1U << 1)); // Set clk_in to Y3 50MHz oscillator
+	enet_rmii_clk_select(0x02);
+	set_enet_rmii_clk_div(0x00);
 	enet_ptp_ref_clk_select(0x04);
 	set_enet_ptp_ref_clk_div(0x00);
-
 	return ENET_OK;
 }
 
@@ -600,6 +602,7 @@ __attribute__((constructor(104))) int init_enet(void) {
 
 	int err = 0;
 	for (unsigned int i = 2; i < 22; ++i) {
+		if (i == 8 || i == 9) continue; // Pin TXD3 and TXD2 are grounded through resistor R68 and R67 respectively.
 		err = set_pin_function(1, i, (9U << 8));
 		if (err) return -ENET_INIT_FAIL;
 	}
@@ -618,9 +621,56 @@ __attribute__((constructor(104))) int init_enet(void) {
 	err = init_enet_mac();
 	if (err) return -ENET_INIT_FAIL;
 
+	nvic_enable_irq(IRQ_ENET0);
+	nvic_enable_irq(IRQ_ENET0_PM);
+	nvic_enable_irq(IRQ_ENET0_LPI);
+
 	set_enet_sbd_flow_ctrl(0x00);
 
 	return ENET_OK;
+}
+
+void get_enet_status(uint32_t* status) {
+	volatile uint32_t* mac_int_status = (uint32_t*) (enet0_addr + mac_int_status_reg_addr);
+	status[0] = *mac_int_status;
+
+	volatile uint32_t* mtl_int_status = (uint32_t*) (enet0_addr + mtl_int_status_reg_addr);
+	status[1] = *mtl_int_status;
+
+	volatile uint32_t* dma_int_status = (uint32_t*) (enet0_addr + dma_int_status_reg_addr);
+	status[2] = *dma_int_status;
+
+	volatile uint32_t* dma_debug_status0 = (uint32_t*) (enet0_addr + dma_debug_status0_reg_addr);
+	status[3] = *dma_debug_status0;
+
+	return;
+}
+
+const uint32_t header[512] = {0};
+const uint32_t payload[512] = {0};
+
+void test_enet_tx(void) {
+	ch0_tx_desc_rb[0].buf1_ap = (uint32_t) header;
+	ch0_tx_desc_rb[0].buf2_ap = (uint32_t) payload;
+	ch0_tx_desc_rb[0].b1l = 512;
+	ch0_tx_desc_rb[0].b2l = 512;
+	ch0_tx_desc_rb[0].ioc = 1;
+	ch0_tx_desc_rb[0].fl = 1024;
+	ch0_tx_desc_rb[0].cic = 0;
+	ch0_tx_desc_rb[0].saic_low = 0;
+	ch0_tx_desc_rb[0].saic_high = 0;
+	ch0_tx_desc_rb[0].cpc = 0x02;
+
+	ch0_tx_desc_rb[0].fd = 1;
+	ch0_tx_desc_rb[0].ld = 1;
+	ch0_tx_desc_rb[0].own = 1;
+
+	volatile uint32_t* dma_ch0_tx_tail_ptr = (uint32_t*) (enet0_addr + dma_ch0_tx_tail_ptr_reg_addr);
+	volatile uint32_t* dma_ch1_tx_tail_ptr = (uint32_t*) (enet0_addr + dma_ch1_tx_tail_ptr_reg_addr);
+	*dma_ch0_tx_tail_ptr = ((uint32_t) (ch0_tx_desc_rb + 1)) & 0xFFF4;
+	*dma_ch1_tx_tail_ptr = ((uint32_t) (ch1_tx_desc_rb + 1)) & 0xFFF4;
+
+	return;
 }
 
 #endif //_ENET_H_

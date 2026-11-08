@@ -4,7 +4,8 @@
 #include <syscon.h>
 #include <clock.h>
 #include <port.h>
-#include "./utils.h"
+#include <utils.h>
+#include <nvic.h>
 
 #define BAUD_RATE 115200
 typedef enum { DEBUG_UART_OK = 0, DEBUG_UART_UNSUPPORTED, DEBUG_UART_INIT_FAIL, DEBUG_UART_TX_FAIL, DEBUG_UART_RX_FAIL, DEBUG_UART_UNSUPPORTED_BAUD_RATE } DebugUARTErrors;
@@ -194,9 +195,6 @@ typedef enum { UART_EVEN_PARITY = 0, UART_ODD_PARITY = 1} UARTParity;
 static const int fifo_size[8] = { 1, 4, 8, 16, 32, 64, 128, 256 };
 
 __attribute((constructor(102))) int init_debug_uart() {
-	const uint32_t baud_rate = BAUD_RATE;
-	if (baud_rate != 115200) return -DEBUG_UART_UNSUPPORTED_BAUD_RATE;
-
 	int err = enable_sirc_clk();
 	if (err) return -DEBUG_UART_INIT_FAIL;
 

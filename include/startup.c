@@ -254,7 +254,7 @@ __attribute__((weak)) void memset(void* dest, uint8_t value, int size) {
 int __libs_init_array(void) {
     const unsigned int count = __init_array_end - __init_array_start;
     for (unsigned int i = 0; i < count; i++) {
-        if (__init_array_start[i] != 0 && __init_array_start[i] != (void*)-1) {
+        if (__init_array_start[i] != NULL && __init_array_start[i] != (void*)-1) {
             int err = __init_array_start[i]();
             if (err) return err;
         }
@@ -275,7 +275,6 @@ void reset_handler(void) {
 
 	__asm volatile("cpsie i");
 
-	__asm__("bkpt");
 	int err = __libs_init_array();
 	if (err) __asm__("bkpt");
 

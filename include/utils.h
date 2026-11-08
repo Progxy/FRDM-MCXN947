@@ -216,13 +216,14 @@ UNUSED_FUNCTION static int vsnprintf(char* str, size_t size, const char* format,
 			unsigned int var_uint = va_arg(args, unsigned int);
 			str_index += to_dec_str(str + str_index, (uint8_t*)&var_uint, sizeof(var_uint));
 			++i;
-		} else if (starts_with((char*) format + i, "%X") || starts_with((char*) format + i, "%x")) {
+		} else if (starts_with((char*) format + i, "%lX") || starts_with((char*) format + i, "%lx") || starts_with((char*) format + i, "%X") || starts_with((char*) format + i, "%x")) {
 			if (2 + str_index >= size) return str_index;
 			str[str_index++] = '0';
 			str[str_index++] = 'x';
 			if (MAX_NUM_LEN + str_index >= size) return str_index;
 			unsigned int var_uint = va_arg(args, unsigned int);
 			str_index += to_hex_str(str + str_index, (uint8_t*)&var_uint, sizeof(var_uint));
+			if (starts_with((char*) format + i, "%lX") || starts_with((char*) format + i, "%lx")) i++;
 			++i;
 		} else if (starts_with((char*) format + i, "%b")) {
 			if (2 + str_index >= size) return str_index;
