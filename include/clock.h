@@ -141,8 +141,8 @@ static_assert(sizeof(scg_sirc_csr_t)  == 4, "Size must be 4 bytes");
 static_assert(sizeof(scg_spll_ctrl_t) == 4, "Size must be 4 bytes");
 static_assert(sizeof(scg_spll_csr_t)  == 4, "Size must be 4 bytes");
 
-typedef enum { MHZ_48 = 0, MHZ_144 = 1 } ClkFreq;
-typedef enum { SOSC_16_20MHZ = 0, SOSC_20_30MHZ = 1, SOSC_30_50MHZ = 2, SOSC_50_66MHZ = 3 } SOSCFreq;
+typedef enum { FIRC_48MHZ= 0, FIRC_144MHZ = 1 } FIRCClkFreq;
+typedef enum { SOSC_16_20MHZ = 0, SOSC_20_30MHZ = 1, SOSC_30_50MHZ = 2, SOSC_50_66MHZ = 3 } SOSCClkFreq;
 
 const unsigned int scg_addr = 0x40044000;
 const unsigned int scg_trim_lock_offset = 0x08;
@@ -162,13 +162,13 @@ const unsigned int scg_spll_pdiv_offset = 0x614;
 const unsigned int scg_spll_lock_cnfg_offset = 0x618;
 
 // NOTE: only perform 32-bit writes on SCG registers otherwise we'll get a transfer error
-ClkFreq get_firc_clk_freq(void) {
+FIRCClkFreq get_firc_clk_freq(void) {
 	volatile uint32_t* firc_cfg = (uint32_t*) (scg_addr + scg_firc_cfg_offset);
 	return (*firc_cfg & 0x01);
 }
 
-// TODO: Currently not working
-int update_firc_clk_freq(ClkFreq clk_freq) {
+// TODO: Currently not working (probably some issue in updating running clock)
+int update_firc_clk_freq(FIRCClkFreq clk_freq) {
 	volatile scg_firc_cfg_t* firc_cfg = (scg_firc_cfg_t*) (scg_addr + scg_firc_cfg_offset);
 	volatile scg_firc_csr_t* firc_csr = (scg_firc_csr_t*) (scg_addr + scg_firc_csr_offset);
 	volatile scg_rccr_t* rccr = (scg_rccr_t*) (scg_addr + scg_rccr_offset);
@@ -184,7 +184,7 @@ int update_firc_clk_freq(ClkFreq clk_freq) {
 	scg_firc_csr_t firc_csr_ = *firc_csr;
 	firc_csr_.lk = 0;
 	firc_csr_.firc_fclk_periph_en = clk_freq & 0x01;
-	firc_csr_.firc_sclk_periph_en = (~clk_freq) & 0x01;
+	firc_csr_.firc_sclk_periph_en = (clk_freq ^ 0x01) & 0x01;
 	firc_csr_.firc_sten = 0;
 	firc_csr_.firc_en = 1;
 	*firc_csr = firc_csr_;
@@ -206,7 +206,7 @@ int update_firc_clk_freq(ClkFreq clk_freq) {
 // • Gated by SYSCON.CLOCK_CTRL[1], clk_in goes to FREQME, USBHS, LPTMR0, and LPTMR1
 // • Gated by SYSCON.CLOCK_CTRL[5], clk_in goes to MICFIL, EMVSIM0, EMVSIM1, CAN0, CAN1, I3C0,
 //   I3C1, SAI0, SAI1, SINC Filter (SINC), TSI, USBFS, SCT, uSDHC, and CLKOUT.
-int update_sosc_clk_freq(const SOSCFreq sosc_freq) {
+int update_sosc_clk_freq(const SOSCClkFreq sosc_freq) {
 	volatile scg_sosc_csr_t* sosc_csr = (scg_sosc_csr_t*) (scg_addr + scg_sosc_csr_offset);
 	volatile scg_sosc_cfg_t* sosc_cfg = (scg_sosc_cfg_t*) (scg_addr + scg_sosc_cfg_offset);
 	volatile uint32_t* trim_lock = (uint32_t*) (scg_addr + scg_trim_lock_offset);

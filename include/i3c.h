@@ -139,10 +139,11 @@ static_assert(sizeof(mdata_ctrl_t) == 4, "Size must be 4 bytes");
 // NOTE: The I3C Registers require 32-bit access both in read and write mode.
 __attribute((constructor(103))) int init_i3c(void) {
 	// Enable clock with syscon, ensure that the clock runs at 24Mhz
-	ClkFreq clk_freq = get_firc_clk_freq();
-	uint8_t clk_div = 0x01 + clk_freq * 4;
-	set_i3c0_clock(0x3, clk_div);
-	set_i3c1_clock(0x3, clk_div);
+	int err = update_firc_clk_freq(FIRC_48MHZ);
+	if (err) return -I3C_INIT_FAIL;
+
+	set_i3c0_clock(0x3, 0x01);
+	set_i3c1_clock(0x3, 0x01);
 	set_ahb_clk_ctrl(3, (1U << I3C_0) | (1U << I3C_1));
 
 	// Should also do the same for I3C0 pins?

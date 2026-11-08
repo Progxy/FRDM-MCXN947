@@ -7,18 +7,20 @@
 
 void main(void) {
 	int err = 0;
-	char buf[128] = {0};
+	char buf[256] = {0};
 	//init_ltr();
 	// unsigned int config = init_temp_sensor();
 
 	test_enet_tx();
 
-	uint32_t enet_status[4] = {0};
+	uint32_t enet_status[10] = {0};
 	do {
 		get_enet_status(enet_status);
 		for (unsigned int i = 0; i < 4; ++i) if (enet_status[i]) __asm__("bkpt");
-		memset(buf, 0, 128);
-		const unsigned int buf_size = snprintf(buf, 128, "enet status: %lX, %lX, %lX, %lX\n", enet_status[0], enet_status[1], enet_status[2], enet_status[3]) - 1;
+		memset(buf, 0, 256);
+		unsigned int buf_size = snprintf(buf, 256, "enet status: ");
+		for (unsigned int i = 0; i < 10 && buf_size < 256; ++i) buf_size += snprintf(buf + buf_size, 256 - buf_size, "%lX, ", enet_status[i]);
+		buf_size += snprintf(buf + buf_size, 256 - buf_size, "\n");
 		err = send_uart(buf, buf_size);
 		if (err) __asm__ ("bkpt");
 		delay_ms(3000);

@@ -5,6 +5,7 @@
 
 const unsigned int syscon_addr = 0x40000000;
 const unsigned int syscon_periph_reset_ctrl_set = 0x120;
+const unsigned int syscon_periph_reset_ctrl_clear = 0x140;
 const unsigned int clk_ahb_ctrl_set_offsets[] = { 0x220, 0x224, 0x228, 0x22C };
 const unsigned int clk_ahb_ctrl_clear_offsets[] = { 0x240, 0x244, 0x248, 0x24C };
 const unsigned int syscon_fc_clk_sel_base = 0x2B0;
@@ -51,7 +52,7 @@ void clock_ctrl_set(uint32_t bitmask) {
 
 void clock_ctrl_clr(uint32_t bitmask) {
 	volatile uint32_t* syscon_clock_ctrl = (uint32_t*) (syscon_addr + syscon_clock_ctrl_offset);
-	*syscon_clock_ctrl = ((*syscon_clock_ctrl & ~bitmask) | SYSCON_CLOCK_CTRL_MASK_B) & SYSCON_CLOCK_CTRL_MASK_A;
+	*syscon_clock_ctrl = ((*syscon_clock_ctrl & (~bitmask)) | SYSCON_CLOCK_CTRL_MASK_B) & SYSCON_CLOCK_CTRL_MASK_A;
 	return;
 }
 
@@ -81,6 +82,13 @@ void set_peripheral_reset_ctrl(uint8_t idx, uint32_t val) {
 	if (idx > 3) return;
 	volatile uint32_t* preset_ctrl_set = (uint32_t*) (syscon_addr + syscon_periph_reset_ctrl_set + 4 * idx);
 	*preset_ctrl_set = val;
+	return;
+}
+
+void clear_peripheral_reset_ctrl(uint8_t idx, uint32_t val) {
+	if (idx > 3) return;
+	volatile uint32_t* preset_ctrl_clear = (uint32_t*) (syscon_addr + syscon_periph_reset_ctrl_clear + 4 * idx);
+	*preset_ctrl_clear = val;
 	return;
 }
 

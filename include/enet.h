@@ -53,6 +53,11 @@ const unsigned int mac_config_reg_addr = 0x00;
 const unsigned int mtl_int_status_reg_addr = 0xC20;
 const unsigned int dma_int_status_reg_addr = 0x1008;
 const unsigned int dma_debug_status0_reg_addr = 0x100C;
+const unsigned int dma_status_ch0_reg_addr = 0x1160;
+const unsigned int dma_status_ch1_reg_addr = 0x11E0;
+const unsigned int mac_debug_reg_addr = 0x114;
+const unsigned int mtl_rxq0_debug_reg_addr = 0xD38;
+const unsigned int mtl_rxq1_debug_reg_addr = 0xD78;
 
 typedef struct {
 	uint8_t swr: 1;
@@ -380,7 +385,8 @@ int init_enet_dma(void) {
 	dma_mode.swr = 1;
 	*dma_mode_reg = *((uint32_t*) &dma_mode);
 
-	while (*dma_mode_reg & 0x01) delay_us(1);
+	delay_us(100); // Delay consecutive write/read to the same register, as the sysclock and the enet0 clock are on different domains
+	while (*dma_mode_reg & 0x01) delay_us(5);
 
 	volatile uint32_t* dma_sysbus_mode_reg = (uint32_t*) (enet0_addr + dma_sysbus_mode_reg_addr);
 	dma_sysbus_mode_t dma_sysbus_mode = *(dma_sysbus_mode_t*)dma_sysbus_mode_reg;
@@ -586,8 +592,7 @@ int init_enet_mac(void) {
 }
 
 int init_enet_clock(void) {
-	clock_ctrl_clr((1U << 5) | (1U << 1)); // Set clk_in to Y3 50MHz oscillator
-	enet_rmii_clk_select(0x02);
+	enet_rmii_clk_select(0x07); // Do not use any internally managed/generated clock, for the ENET0_TX_CLK
 	set_enet_rmii_clk_div(0x00);
 	enet_ptp_ref_clk_select(0x04);
 	set_enet_ptp_ref_clk_div(0x00);
@@ -596,16 +601,19 @@ int init_enet_clock(void) {
 
 __attribute__((constructor(104))) int init_enet(void) {
 	set_ahb_clk_ctrl(0, (1U << PORT0) | (1U << PORT1) | (1U << PORT2) | (1U << PORT3) | (1U << PORT4));
-	set_ahb_clk_ctrl(2, (1U << ENET));
-	set_peripheral_reset_ctrl(2, (1U << ENET_RST));
-	set_enet_phy_interface(ENET_RMII_PHY);
-
 	int err = 0;
 	for (unsigned int i = 2; i < 22; ++i) {
 		if (i == 8 || i == 9) continue; // Pin TXD3 and TXD2 are grounded through resistor R68 and R67 respectively.
 		err = set_pin_function(1, i, (9U << 8));
 		if (err) return -ENET_INIT_FAIL;
 	}
+
+	set_peripheral_reset_ctrl(2, (1U << ENET_RST));
+	delay_us(5);
+	clear_peripheral_reset_ctrl(2, (1U << ENET_RST));
+	clock_ctrl_clr((1U << 5) | (1U << 1)); // Set clk_in to Y3 50MHz oscillator
+	set_ahb_clk_ctrl(2, (1U << ENET));
+	set_enet_phy_interface(ENET_RMII_PHY);
 
 	err = init_enet_clock();
 	if (err) return -ENET_INIT_FAIL;
@@ -642,6 +650,25 @@ void get_enet_status(uint32_t* status) {
 
 	volatile uint32_t* dma_debug_status0 = (uint32_t*) (enet0_addr + dma_debug_status0_reg_addr);
 	status[3] = *dma_debug_status0;
+
+	volatile uint32_t* dma_status_ch0 = (uint32_t*) (enet0_addr + dma_status_ch0_reg_addr);
+	status[4] = *dma_status_ch0;
+
+	volatile uint32_t* dma_status_ch1 = (uint32_t*) (enet0_addr + dma_status_ch1_reg_addr);
+	status[5] = *dma_status_ch1;
+
+	volatile uint32_t* mac_debug = (uint32_t*) (enet0_addr + mac_debug_reg_addr);
+	status[6] = *mac_debug;
+
+	volatile uint32_t* mtl_rxq0_debug = (uint32_t*) (enet0_addr + mtl_rxq0_debug_reg_addr);
+	status[7] = *mtl_rxq0_debug;
+
+	volatile uint32_t* mtl_rxq1_debug = (uint32_t*) (enet0_addr + mtl_rxq1_debug_reg_addr);
+	status[8] = *mtl_rxq1_debug;
+
+	const unsigned int mac_version_addr = 0x110;
+	volatile uint32_t* mac_version = (uint32_t*) (enet0_addr + mac_version_addr);
+	status[9] = *mac_version;
 
 	return;
 }
