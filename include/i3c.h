@@ -148,9 +148,9 @@ __attribute((constructor(103))) int init_i3c(void) {
 
 	// Should also do the same for I3C0 pins?
 	set_ahb_clk_ctrl(0, (1U << PORT1));
-	int err = set_pin_function(1, 16, (10U << 8));
+	int err = update_pin_function(1, 16, (10U << MUX), MUX_BITMASK);
 	if (err) return -I3C_INIT_FAIL;
-	err = set_pin_function(1, 17, (10U << 8));
+	err = update_pin_function(1, 17, (10U << MUX), MUX_BITMASK);
 	if (err) return -I3C_INIT_FAIL;
 
 	mconfig_t mconfig_ = {0};

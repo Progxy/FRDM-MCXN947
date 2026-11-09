@@ -202,9 +202,9 @@ __attribute((constructor(102))) int init_debug_uart() {
 	enable_flexcomm_clock(4, 2);
 
 	set_ahb_clk_ctrl(0, (1U << PORT1));
-	err = set_pin_function(1, 8, (0x02U << 8));
+	err = update_pin_function(1, 8, (2U << MUX), MUX_BITMASK);
 	if (err) return -DEBUG_UART_INIT_FAIL;
-	err = set_pin_function(1, 9, (0x02U << 8));
+	err = update_pin_function(1, 9, (2U << MUX), MUX_BITMASK);
 	if (err) return -DEBUG_UART_INIT_FAIL;
 
 	volatile pselid_t* pselid = (pselid_t*) (lp_flexcomm4_addr + pselid_addr);

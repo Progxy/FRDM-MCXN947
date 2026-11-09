@@ -382,6 +382,7 @@ __attribute__((aligned(4))) uint8_t ch1_rx_bufs[DMA_DESC_RB_SIZE * 2 * RECEIVE_B
 int init_enet_dma(void) {
 	volatile uint32_t* dma_mode_reg = (uint32_t*) (enet0_addr + dma_mode_reg_addr);
 	dma_mode_t dma_mode = *(dma_mode_t*)dma_mode_reg;
+	if (dma_mode.swr) __asm__("bkpt");
 	dma_mode.swr = 1;
 	*dma_mode_reg = *((uint32_t*) &dma_mode);
 
@@ -592,7 +593,7 @@ int init_enet_mac(void) {
 }
 
 int init_enet_clock(void) {
-	enet_rmii_clk_select(0x07); // Do not use any internally managed/generated clock, for the ENET0_TX_CLK
+	enet_rmii_clk_select(0x00); // Do not use any internally managed/generated clock, for the ENET0_TX_CLK
 	set_enet_rmii_clk_div(0x00);
 	enet_ptp_ref_clk_select(0x04);
 	set_enet_ptp_ref_clk_div(0x00);
@@ -604,21 +605,21 @@ __attribute__((constructor(104))) int init_enet(void) {
 	int err = 0;
 	for (unsigned int i = 2; i < 22; ++i) {
 		if (i == 8 || i == 9) continue; // Pin TXD3 and TXD2 are grounded through resistor R68 and R67 respectively.
-		err = set_pin_function(1, i, (9U << 8));
+		err = update_pin_function(1, i, (9U << MUX), MUX_BITMASK);
 		if (err) return -ENET_INIT_FAIL;
 	}
 
-	set_peripheral_reset_ctrl(2, (1U << ENET_RST));
-	delay_us(5);
-	clear_peripheral_reset_ctrl(2, (1U << ENET_RST));
-	clock_ctrl_clr((1U << 5) | (1U << 1)); // Set clk_in to Y3 50MHz oscillator
 	set_ahb_clk_ctrl(2, (1U << ENET));
+	set_peripheral_reset_ctrl(2, (1U << ENET_RST));
+	delay_ms(5);
+	clear_peripheral_reset_ctrl(2, (1U << ENET_RST));
 	set_enet_phy_interface(ENET_RMII_PHY);
+
+	//set_enet_sbd_flow_ctrl(0x03);
+	__asm__("bkpt");
 
 	err = init_enet_clock();
 	if (err) return -ENET_INIT_FAIL;
-
-	set_enet_sbd_flow_ctrl(0x03);
 
 	err = init_enet_dma();
 	if (err) return -ENET_INIT_FAIL;
