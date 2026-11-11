@@ -436,6 +436,8 @@ int init_enet_dma(void) {
 		ch1_rx_desc_rb[i].buf2v = 1;
 		ch1_rx_desc_rb[i].ioc = 1;
 		ch1_rx_desc_rb[i].own = 1;
+		ch0_tx_desc_rb[i].own = 1;
+		ch1_tx_desc_rb[i].own = 1;
 	}
 
 	dma_ch_rx_ctrl2_t dma_ch_rx_ctrl2 = {0};
@@ -454,23 +456,23 @@ int init_enet_dma(void) {
 
 	volatile uint32_t* dma_ch0_tx_addr = (uint32_t*) (enet0_addr + dma_ch0_tx_addr_reg_addr);
 	volatile uint32_t* dma_ch1_tx_addr = (uint32_t*) (enet0_addr + dma_ch1_tx_addr_reg_addr);
-	*dma_ch0_tx_addr = ((uint32_t) ch0_tx_desc_rb) & 0xFFF4;
-	*dma_ch1_tx_addr = ((uint32_t) ch1_tx_desc_rb) & 0xFFF4;
+	*dma_ch0_tx_addr = ((uint32_t) ch0_tx_desc_rb) & 0xFFFFFFF4;
+	*dma_ch1_tx_addr = ((uint32_t) ch1_tx_desc_rb) & 0xFFFFFFF4;
 
 	volatile uint32_t* dma_ch0_rx_addr = (uint32_t*) (enet0_addr + dma_ch0_rx_addr_reg_addr);
 	volatile uint32_t* dma_ch1_rx_addr = (uint32_t*) (enet0_addr + dma_ch1_rx_addr_reg_addr);
-	*dma_ch0_rx_addr = ((uint32_t) ch0_rx_desc_rb) & 0xFFF4;
-	*dma_ch1_rx_addr = ((uint32_t) ch1_rx_desc_rb) & 0xFFF4;
+	*dma_ch0_rx_addr = ((uint32_t) ch0_rx_desc_rb) & 0xFFFFFFF4;
+	*dma_ch1_rx_addr = ((uint32_t) ch1_rx_desc_rb) & 0xFFFFFFF4;
 
 	volatile uint32_t* dma_ch0_tx_tail_ptr = (uint32_t*) (enet0_addr + dma_ch0_tx_tail_ptr_reg_addr);
 	volatile uint32_t* dma_ch1_tx_tail_ptr = (uint32_t*) (enet0_addr + dma_ch1_tx_tail_ptr_reg_addr);
-	*dma_ch0_tx_tail_ptr = ((uint32_t) ch0_tx_desc_rb) & 0xFFF4;
-	*dma_ch1_tx_tail_ptr = ((uint32_t) ch1_tx_desc_rb) & 0xFFF4;
+	*dma_ch0_tx_tail_ptr = ((uint32_t) ch0_tx_desc_rb) & 0xFFFFFFF4;
+	*dma_ch1_tx_tail_ptr = ((uint32_t) ch1_tx_desc_rb) & 0xFFFFFFF4;
 
 	volatile uint32_t* dma_ch0_rx_tail_ptr = (uint32_t*) (enet0_addr + dma_ch0_rx_tail_ptr_reg_addr);
 	volatile uint32_t* dma_ch1_rx_tail_ptr = (uint32_t*) (enet0_addr + dma_ch1_rx_tail_ptr_reg_addr);
-	*dma_ch0_rx_tail_ptr = ((uint32_t) (ch0_rx_desc_rb + DMA_DESC_RB_SIZE - 1)) & 0xFFF4;
-	*dma_ch1_rx_tail_ptr = ((uint32_t) (ch1_rx_desc_rb + DMA_DESC_RB_SIZE - 1)) & 0xFFF4;
+	*dma_ch0_rx_tail_ptr = ((uint32_t) (ch0_rx_desc_rb + DMA_DESC_RB_SIZE - 1)) & 0xFFFFFFF4;
+	*dma_ch1_rx_tail_ptr = ((uint32_t) (ch1_rx_desc_rb + DMA_DESC_RB_SIZE - 1)) & 0xFFFFFFF4;
 
 	dma_ch_ctrl_t dma_ch_ctrl = {0};
 	dma_ch_ctrl.pblx8 = 1;
@@ -722,6 +724,38 @@ void get_enet_status(uint32_t* status) {
 	volatile uint32_t* mac_debug = (uint32_t*) (enet0_addr + mac_debug_reg_addr);
 	status[5] = *mac_debug;
 
+	const unsigned int dma_ch0_cur_app_txdesc_addr = 0x1144;
+	volatile uint32_t* dma_ch0_cur_app_txdesc = (uint32_t*) (enet0_addr + dma_ch0_cur_app_txdesc_addr);
+	status[6] = *dma_ch0_cur_app_txdesc;
+
+	const unsigned int dma_ch0_cur_app_rxdesc_addr = 0x114C;
+	volatile uint32_t* dma_ch0_cur_app_rxdesc = (uint32_t*) (enet0_addr + dma_ch0_cur_app_rxdesc_addr);
+	status[7] = *dma_ch0_cur_app_rxdesc;
+
+	const unsigned int dma_ch0_cur_app_txbuf_addr = 0x1154;
+	volatile uint32_t* dma_ch0_cur_app_txbuf = (uint32_t*) (enet0_addr + dma_ch0_cur_app_txbuf_addr);
+	status[8] = *dma_ch0_cur_app_txbuf;
+
+	const unsigned int dma_ch0_cur_app_rxbuf_addr = 0x115C;
+	volatile uint32_t* dma_ch0_cur_app_rxbuf = (uint32_t*) (enet0_addr + dma_ch0_cur_app_rxbuf_addr);
+	status[9] = *dma_ch0_cur_app_rxbuf;
+
+	const unsigned int dma_ch1_cur_app_txdesc_addr = 0x11C4;
+	volatile uint32_t* dma_ch1_cur_app_txdesc = (uint32_t*) (enet0_addr + dma_ch1_cur_app_txdesc_addr);
+	status[10] = *dma_ch1_cur_app_txdesc;
+
+	const unsigned int dma_ch1_cur_app_rxdesc_addr = 0x11CC;
+	volatile uint32_t* dma_ch1_cur_app_rxdesc = (uint32_t*) (enet0_addr + dma_ch1_cur_app_rxdesc_addr);
+	status[11] = *dma_ch1_cur_app_rxdesc;
+
+	const unsigned int dma_ch1_cur_app_txbuf_addr = 0x11D4;
+	volatile uint32_t* dma_ch1_cur_app_txbuf = (uint32_t*) (enet0_addr + dma_ch1_cur_app_txbuf_addr);
+	status[12] = *dma_ch1_cur_app_txbuf;
+
+	const unsigned int dma_ch1_cur_app_rxbuf_addr = 0x11DC;
+	volatile uint32_t* dma_ch1_cur_app_rxbuf = (uint32_t*) (enet0_addr + dma_ch1_cur_app_rxbuf_addr);
+	status[13] = *dma_ch1_cur_app_rxbuf;
+
 	return;
 }
 
@@ -752,11 +786,11 @@ void test_enet_tx(void) {
 	return;
 }
 
-static uint32_t status[10] = {0};
+static uint32_t status[15] = {0};
 __attribute__((section(".after_vectors.enet_handler"), naked, noreturn)) void enet_handler(void) {
 	get_enet_status(status);
 	__asm__ volatile("bkpt");
-
+	// TODO: Clear the interrupt status flags, once they have been handled
 	__asm__ volatile("bx lr");
 }
 
