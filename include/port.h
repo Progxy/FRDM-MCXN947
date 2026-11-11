@@ -38,7 +38,7 @@ uint32_t get_pin_bitmask(uint8_t pin) {
 }
 
 // TODO: Check if given port-pin combination exists
-int set_pin_function(uint8_t port, uint8_t pin, uint32_t val) {
+int set_pin_function(uint8_t port, uint32_t pin, uint32_t val) {
 	if (port > 5) return -1;
 	else if (pin > 31) return -1;
 	volatile uint32_t* pin_reg = (uint32_t*) (port_addr[port] + pin_base_addr + pin * 4);
@@ -48,7 +48,7 @@ int set_pin_function(uint8_t port, uint8_t pin, uint32_t val) {
 	return 0;
 }
 
-int update_pin_function(uint8_t port, uint8_t pin, uint32_t field_val, uint32_t field_bitmask) {
+int update_pin_function(uint8_t port, uint32_t pin, uint32_t field_val, uint32_t field_bitmask) {
 	if (port > 5) return -1;
 	else if (pin > 31) return -1;
 	volatile uint32_t* pin_reg = (uint32_t*) (port_addr[port] + pin_base_addr + pin * 4);
@@ -58,7 +58,7 @@ int update_pin_function(uint8_t port, uint8_t pin, uint32_t field_val, uint32_t 
 	return 0;
 }
 
-uint32_t get_pin_function(uint8_t port, uint8_t pin) {
+uint32_t get_pin_function(uint8_t port, uint32_t pin) {
 	if (port > 5) return 0;
 	else if (pin > 31) return 0;
 	volatile uint32_t* pin_reg = (uint32_t*) (port_addr[port] + pin_base_addr + pin * 4);

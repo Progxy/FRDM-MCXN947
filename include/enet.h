@@ -58,6 +58,7 @@ const unsigned int dma_status_ch1_reg_addr = 0x11E0;
 const unsigned int mac_debug_reg_addr = 0x114;
 const unsigned int mtl_rxq0_debug_reg_addr = 0xD38;
 const unsigned int mtl_rxq1_debug_reg_addr = 0xD78;
+const unsigned int mac_mdio_address_reg_addr = 0x200;
 
 typedef struct {
 	uint8_t swr: 1;
@@ -346,6 +347,25 @@ typedef struct {
 	uint8_t rsv2: 1;
 } __attribute__((packed)) mac_config_t;
 
+typedef struct {
+	uint8_t gb: 1;
+	uint8_t c45e: 1;
+	uint8_t goc_0: 1;
+	uint8_t goc_1: 1;
+	uint8_t skap: 1;
+	uint8_t rsv: 3;
+	uint8_t cr: 4;
+	uint8_t ntc: 3;
+	uint8_t rsv1: 1;
+	uint8_t rda: 5;
+	uint8_t pa_low: 3;
+	uint8_t pa_high: 2;
+	uint8_t btb: 1;
+	uint8_t pse: 1;
+	uint8_t rsv2: 4;
+} __attribute__((packed)) mac_mdio_address_t;
+
+static_assert(sizeof(mac_mdio_address_t)  == 4,  "Size must be 4 bytes");
 static_assert(sizeof(mac_inte_t)          == 4,  "Size must be 4 bytes");
 static_assert(sizeof(mac_qtx_fctrl_t)     == 4,  "Size must be 4 bytes");
 static_assert(sizeof(mac_packet_filter_t) == 4,  "Size must be 4 bytes");
@@ -382,7 +402,7 @@ __attribute__((aligned(4))) uint8_t ch1_rx_bufs[DMA_DESC_RB_SIZE * 2 * RECEIVE_B
 int init_enet_dma(void) {
 	volatile uint32_t* dma_mode_reg = (uint32_t*) (enet0_addr + dma_mode_reg_addr);
 	dma_mode_t dma_mode = *(dma_mode_t*)dma_mode_reg;
-	if (dma_mode.swr) __asm__("bkpt");
+	//if (dma_mode.swr) __asm__("bkpt");
 	dma_mode.swr = 1;
 	*dma_mode_reg = *((uint32_t*) &dma_mode);
 
@@ -600,26 +620,70 @@ int init_enet_clock(void) {
 	return ENET_OK;
 }
 
+int enet_set_smi(uint32_t clk_freq) {
+    const uint32_t clk_mhz = clk_freq / 1000000;
+    if ((clk_mhz < 20) || (clk_mhz > 800)) return -ENET_INIT_FAIL;
+
+    uint32_t cr  = 0;
+    if (clk_mhz < 35)       cr = 2;
+    else if (clk_mhz < 60)  cr = 3;
+    else if (clk_mhz < 100) cr = 0;
+    else if (clk_mhz < 150) cr = 1;
+    else if (clk_mhz < 250) cr = 4;
+    else if (clk_mhz < 300) cr = 5;
+    else if (clk_mhz < 500) cr = 6;
+    else if (clk_mhz < 800) cr = 7;
+
+    volatile uint32_t* mac_mdio_address_reg = (uint32_t*) (enet0_addr + mac_mdio_address_reg_addr);
+    mac_mdio_address_t mac_mdio_address = {0};
+    mac_mdio_address.cr = cr;
+    *mac_mdio_address_reg = *((uint32_t*) &mac_mdio_address);
+
+    return ENET_OK;
+}
+
+uint32_t enet_phy_read(const uint32_t phy_addr, const uint32_t phy_reg) {
+	volatile uint32_t* mac_mdio_address_reg = (uint32_t*) (enet0_addr + mac_mdio_address_reg_addr);
+	mac_mdio_address_t mac_mdio_address = *(mac_mdio_address_t*)mac_mdio_address_reg;
+	mac_mdio_address.goc_0 = 1;
+	mac_mdio_address.goc_1 = 1;
+	mac_mdio_address.pa_low = phy_addr & 0x07;
+	mac_mdio_address.pa_high = (phy_addr >> 3) & 0x03;
+	mac_mdio_address.rda = phy_reg;
+	*mac_mdio_address_reg = *((uint32_t*) &mac_mdio_address);
+
+	mac_mdio_address.gb = 1;
+	*mac_mdio_address_reg = *((uint32_t*) &mac_mdio_address);
+
+	while (*mac_mdio_address_reg & 0x01) delay_us(1);
+
+    const unsigned int mac_mdio_data_reg_addr = 0x204;
+    volatile uint32_t* mac_mdio_data = (uint32_t*) (enet0_addr + mac_mdio_data_reg_addr);
+    return (*mac_mdio_data & 0xFFFF);
+}
+
 __attribute__((constructor(104))) int init_enet(void) {
-	set_ahb_clk_ctrl(0, (1U << PORT0) | (1U << PORT1) | (1U << PORT2) | (1U << PORT3) | (1U << PORT4));
+	set_ahb_clk_ctrl(0, (1U << PORT0) | (1U << PORT1) | (1U << PORT2) | (1U << PORT3) | (1U << PORT4) | (1 << INPUT_MUX));
 	int err = 0;
-	for (unsigned int i = 2; i < 22; ++i) {
-		if (i == 8 || i == 9) continue; // Pin TXD3 and TXD2 are grounded through resistor R68 and R67 respectively.
-		err = update_pin_function(1, i, (9U << MUX), MUX_BITMASK);
+
+	// NOTE: P1_4,5,6,7 - P1_13,14,15 and P1_20,21 are the essential ones, the other could theoretically be skipped but would require
+	const uint8_t enet_pins[] = { 4, 5, 6, 7, 13, 14, 15, 20, 21 };
+	//const uint8_t enet_pins[] = { 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 };
+	for (unsigned int i = 0; i < sizeof(enet_pins); ++i) {
+		err = update_pin_function(1, enet_pins[i], (9U << MUX), MUX_BITMASK);
 		if (err) return -ENET_INIT_FAIL;
+		update_pin_function(1, enet_pins[i], (1U << IBE), IBE_BITMASK);
 	}
-
-	set_ahb_clk_ctrl(2, (1U << ENET));
-	set_peripheral_reset_ctrl(2, (1U << ENET_RST));
-	delay_ms(5);
-	clear_peripheral_reset_ctrl(2, (1U << ENET_RST));
-	set_enet_phy_interface(ENET_RMII_PHY);
-
-	//set_enet_sbd_flow_ctrl(0x03);
-	__asm__("bkpt");
 
 	err = init_enet_clock();
 	if (err) return -ENET_INIT_FAIL;
+
+	set_ahb_clk_ctrl(2, (1U << ENET));
+	set_enet_phy_interface(ENET_RMII_PHY);
+	set_peripheral_reset_ctrl(2, (1U << ENET_RST));
+	clear_peripheral_reset_ctrl(2, (1U << ENET_RST));
+
+	set_enet_sbd_flow_ctrl(0x03);
 
 	err = init_enet_dma();
 	if (err) return -ENET_INIT_FAIL;
@@ -649,27 +713,14 @@ void get_enet_status(uint32_t* status) {
 	volatile uint32_t* dma_int_status = (uint32_t*) (enet0_addr + dma_int_status_reg_addr);
 	status[2] = *dma_int_status;
 
-	volatile uint32_t* dma_debug_status0 = (uint32_t*) (enet0_addr + dma_debug_status0_reg_addr);
-	status[3] = *dma_debug_status0;
-
 	volatile uint32_t* dma_status_ch0 = (uint32_t*) (enet0_addr + dma_status_ch0_reg_addr);
-	status[4] = *dma_status_ch0;
+	status[3] = *dma_status_ch0;
 
 	volatile uint32_t* dma_status_ch1 = (uint32_t*) (enet0_addr + dma_status_ch1_reg_addr);
-	status[5] = *dma_status_ch1;
+	status[4] = *dma_status_ch1;
 
 	volatile uint32_t* mac_debug = (uint32_t*) (enet0_addr + mac_debug_reg_addr);
-	status[6] = *mac_debug;
-
-	volatile uint32_t* mtl_rxq0_debug = (uint32_t*) (enet0_addr + mtl_rxq0_debug_reg_addr);
-	status[7] = *mtl_rxq0_debug;
-
-	volatile uint32_t* mtl_rxq1_debug = (uint32_t*) (enet0_addr + mtl_rxq1_debug_reg_addr);
-	status[8] = *mtl_rxq1_debug;
-
-	const unsigned int mac_version_addr = 0x110;
-	volatile uint32_t* mac_version = (uint32_t*) (enet0_addr + mac_version_addr);
-	status[9] = *mac_version;
+	status[5] = *mac_debug;
 
 	return;
 }
@@ -699,6 +750,24 @@ void test_enet_tx(void) {
 	*dma_ch1_tx_tail_ptr = ((uint32_t) (ch1_tx_desc_rb + 1)) & 0xFFF4;
 
 	return;
+}
+
+static uint32_t status[10] = {0};
+__attribute__((section(".after_vectors.enet_handler"), naked, noreturn)) void enet_handler(void) {
+	get_enet_status(status);
+	__asm__ volatile("bkpt");
+
+	__asm__ volatile("bx lr");
+}
+
+__attribute__((section(".after_vectors.enet_pm_handler"), naked, noreturn)) void enet_pm_handler(void) {
+	__asm__ volatile("bkpt");
+	__asm__ volatile("bx lr");
+}
+
+__attribute__((section(".after_vectors.enet_lpi_handler"), naked, noreturn)) void enet_lpi_handler(void) {
+	__asm__ volatile("bkpt");
+	__asm__ volatile("bx lr");
 }
 
 #endif //_ENET_H_

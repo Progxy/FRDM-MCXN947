@@ -23,6 +23,7 @@ void nmi_handler(void)           __attribute__((weak, alias("default_handler"), 
 void mem_manage_handler(void)    __attribute__((weak, alias("default_handler"), naked, noreturn));
 void bus_fault_handler(void)     __attribute__((weak, alias("default_handler"), naked, noreturn));
 void usage_fault_handler(void)   __attribute__((weak, alias("default_handler"), naked, noreturn));
+void secure_fault_handler(void)  __attribute__((weak, alias("default_handler"), naked, noreturn));
 void sv_call_handler(void)       __attribute__((weak, alias("default_handler"), naked, noreturn));
 void debug_monitor_handler(void) __attribute__((weak, alias("default_handler"), naked, noreturn));
 void pend_sv_handler(void)       __attribute__((weak, alias("default_handler"), naked, noreturn));
@@ -32,6 +33,9 @@ void usbfs_handler(void)         __attribute__((weak, alias("default_handler"), 
 void usbhs_handler(void)         __attribute__((weak, alias("default_handler"), naked, noreturn));
 void i3c0_handler(void)          __attribute__((weak, alias("default_handler"), naked, noreturn));
 void i3c1_handler(void)          __attribute__((weak, alias("default_handler"), naked, noreturn));
+void enet_handler(void)          __attribute__((weak, alias("default_handler"), naked, noreturn));
+void enet_pm_handler(void)       __attribute__((weak, alias("default_handler"), naked, noreturn));
+void enet_lpi_handler(void)      __attribute__((weak, alias("default_handler"), naked, noreturn));
 
 extern const uint32_t vector_table[];
 
@@ -39,34 +43,25 @@ __attribute__((section(".image_header"), used))
 const uint32_t vector_table[] = {
     (uint32_t) &_stack, // Initial SP
     (uint32_t) reset_handler, // Initial PC
-
- 	// First 6 Vector Table Entries
     (uint32_t) nmi_handler,
     (uint32_t) hard_fault_handler,
     (uint32_t) mem_manage_handler,
     (uint32_t) bus_fault_handler,
     (uint32_t) usage_fault_handler,
-    0,
+    (uint32_t) secure_fault_handler,
 
  	(uint32_t) &_image_length,
  	0x10400, // Image Type
  	0x00, // Offset to Extended Header
 
- 	// Next 2 Vector Table Entries
-    0,
-    0,
+    (uint32_t) sv_call_handler,
+    (uint32_t) debug_monitor_handler,
 
  	0x00, // Image Execution Address
 
- 	// Remaining Vector Table Entries
-    0,
-    (uint32_t) sv_call_handler,
-    (uint32_t) debug_monitor_handler,
-    0,
+    /* External interrupts 14 - 171 */
     (uint32_t) pend_sv_handler,
     (uint32_t) sys_tick_handler,
-
-    /* External interrupts 16 - 171 */
     (uint32_t) default_handler,
     (uint32_t) default_handler,
     (uint32_t) default_handler,
@@ -206,9 +201,9 @@ const uint32_t vector_table[] = {
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
-	(uint32_t) default_handler,
+	(uint32_t) enet_handler,
+	(uint32_t) enet_pm_handler,
+	(uint32_t) enet_lpi_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
