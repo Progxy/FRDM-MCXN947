@@ -24,7 +24,7 @@ const unsigned int dma_ch0_tx_rbl_reg_addr = 0x112C;
 const unsigned int dma_ch1_tx_rbl_reg_addr = 0x11AC;
 const unsigned int dma_ch0_tx_addr_reg_addr = 0x1114;
 const unsigned int dma_ch0_rx_addr_reg_addr = 0x111C;
-const unsigned int dma_ch1_tx_addr_reg_addr = 0x119C;
+const unsigned int dma_ch1_tx_addr_reg_addr = 0x1194;
 const unsigned int dma_ch1_rx_addr_reg_addr = 0x119C;
 const unsigned int dma_ch0_tx_tail_ptr_reg_addr = 0x1120;
 const unsigned int dma_ch0_rx_tail_ptr_reg_addr = 0x1128;
@@ -128,6 +128,27 @@ typedef struct {
 	uint8_t nie: 1;
 	uint16_t rsv1;
 } __attribute__((packed)) dma_ch_inte_t;
+
+typedef struct {
+	uint8_t ti: 1;
+	uint8_t tps: 1;
+	uint8_t tbu: 1;
+	uint8_t rsv: 3;
+	uint8_t ri: 1;
+	uint8_t rbu: 1;
+	uint8_t rps: 1;
+	uint8_t rwt: 1;
+	uint8_t eti: 1;
+	uint8_t eri: 1;
+	uint8_t fbe: 1;
+	uint8_t cde: 1;
+	uint8_t ais: 1;
+	uint8_t nis: 1;
+	uint8_t teb: 3;
+	uint8_t reb: 3;
+	uint8_t rsv1: 2;
+	uint8_t rsv2;
+} __attribute__((packed)) dma_ch_int_status_t;
 
 typedef struct {
 	uint8_t sr: 1;
@@ -365,7 +386,18 @@ typedef struct {
 	uint8_t rsv2: 4;
 } __attribute__((packed)) mac_mdio_address_t;
 
+typedef struct {
+	uint8_t dc0_is: 1;
+	uint8_t dc1_is: 1;
+	uint16_t rsv: 14;
+	uint8_t mtl_is: 1;
+	uint8_t mac_is: 1;
+	uint16_t rsv1: 14;
+} __attribute__((packed)) dma_int_status_t;
+
+static_assert(sizeof(dma_int_status_t)    == 4,  "Size must be 4 bytes");
 static_assert(sizeof(mac_mdio_address_t)  == 4,  "Size must be 4 bytes");
+static_assert(sizeof(dma_ch_int_status_t) == 4,  "Size must be 4 bytes");
 static_assert(sizeof(mac_inte_t)          == 4,  "Size must be 4 bytes");
 static_assert(sizeof(mac_qtx_fctrl_t)     == 4,  "Size must be 4 bytes");
 static_assert(sizeof(mac_packet_filter_t) == 4,  "Size must be 4 bytes");
@@ -456,23 +488,23 @@ int init_enet_dma(void) {
 
 	volatile uint32_t* dma_ch0_tx_addr = (uint32_t*) (enet0_addr + dma_ch0_tx_addr_reg_addr);
 	volatile uint32_t* dma_ch1_tx_addr = (uint32_t*) (enet0_addr + dma_ch1_tx_addr_reg_addr);
-	*dma_ch0_tx_addr = ((uint32_t) ch0_tx_desc_rb) & 0xFFFFFFF4;
-	*dma_ch1_tx_addr = ((uint32_t) ch1_tx_desc_rb) & 0xFFFFFFF4;
+	*dma_ch0_tx_addr = ((uint32_t) ch0_tx_desc_rb) & 0xFFFFFFFC;
+	*dma_ch1_tx_addr = ((uint32_t) ch1_tx_desc_rb) & 0xFFFFFFFC;
 
 	volatile uint32_t* dma_ch0_rx_addr = (uint32_t*) (enet0_addr + dma_ch0_rx_addr_reg_addr);
 	volatile uint32_t* dma_ch1_rx_addr = (uint32_t*) (enet0_addr + dma_ch1_rx_addr_reg_addr);
-	*dma_ch0_rx_addr = ((uint32_t) ch0_rx_desc_rb) & 0xFFFFFFF4;
-	*dma_ch1_rx_addr = ((uint32_t) ch1_rx_desc_rb) & 0xFFFFFFF4;
+	*dma_ch0_rx_addr = ((uint32_t) ch0_rx_desc_rb) & 0xFFFFFFFC;
+	*dma_ch1_rx_addr = ((uint32_t) ch1_rx_desc_rb) & 0xFFFFFFFC;
 
 	volatile uint32_t* dma_ch0_tx_tail_ptr = (uint32_t*) (enet0_addr + dma_ch0_tx_tail_ptr_reg_addr);
 	volatile uint32_t* dma_ch1_tx_tail_ptr = (uint32_t*) (enet0_addr + dma_ch1_tx_tail_ptr_reg_addr);
-	*dma_ch0_tx_tail_ptr = ((uint32_t) ch0_tx_desc_rb) & 0xFFFFFFF4;
-	*dma_ch1_tx_tail_ptr = ((uint32_t) ch1_tx_desc_rb) & 0xFFFFFFF4;
+	*dma_ch0_tx_tail_ptr = ((uint32_t) ch0_tx_desc_rb) & 0xFFFFFFFC;
+	*dma_ch1_tx_tail_ptr = ((uint32_t) ch1_tx_desc_rb) & 0xFFFFFFFC;
 
 	volatile uint32_t* dma_ch0_rx_tail_ptr = (uint32_t*) (enet0_addr + dma_ch0_rx_tail_ptr_reg_addr);
 	volatile uint32_t* dma_ch1_rx_tail_ptr = (uint32_t*) (enet0_addr + dma_ch1_rx_tail_ptr_reg_addr);
-	*dma_ch0_rx_tail_ptr = ((uint32_t) (ch0_rx_desc_rb + DMA_DESC_RB_SIZE - 1)) & 0xFFFFFFF4;
-	*dma_ch1_rx_tail_ptr = ((uint32_t) (ch1_rx_desc_rb + DMA_DESC_RB_SIZE - 1)) & 0xFFFFFFF4;
+	*dma_ch0_rx_tail_ptr = ((uint32_t) (ch0_rx_desc_rb + DMA_DESC_RB_SIZE - 1)) & 0xFFFFFFFC;
+	*dma_ch1_rx_tail_ptr = ((uint32_t) (ch1_rx_desc_rb + DMA_DESC_RB_SIZE - 1)) & 0xFFFFFFFC;
 
 	dma_ch_ctrl_t dma_ch_ctrl = {0};
 	dma_ch_ctrl.pblx8 = 1;
@@ -779,18 +811,60 @@ void test_enet_tx(void) {
 	ch0_tx_desc_rb[0].own = 1;
 
 	volatile uint32_t* dma_ch0_tx_tail_ptr = (uint32_t*) (enet0_addr + dma_ch0_tx_tail_ptr_reg_addr);
-	volatile uint32_t* dma_ch1_tx_tail_ptr = (uint32_t*) (enet0_addr + dma_ch1_tx_tail_ptr_reg_addr);
-	*dma_ch0_tx_tail_ptr = ((uint32_t) (ch0_tx_desc_rb + 1)) & 0xFFF4;
-	*dma_ch1_tx_tail_ptr = ((uint32_t) (ch1_tx_desc_rb + 1)) & 0xFFF4;
+	*dma_ch0_tx_tail_ptr = ((uint32_t) (ch0_tx_desc_rb + 1)) & 0xFFFFFFFC;
 
 	return;
 }
 
 static uint32_t status[15] = {0};
+
+void parse_rx_packet(void) {
+	return;
+}
+
+void parse_tx_result(void) {
+	return;
+}
+
+void dma_ch_int_handler(volatile dma_ch_int_status_t* dma_ch_status) {
+	if (dma_ch_status -> nis && !dma_ch_status -> ais && !dma_ch_status -> reb && !dma_ch_status -> teb) {
+		if (dma_ch_status -> ri) parse_rx_packet();
+		if (dma_ch_status -> ti) parse_tx_result();
+	}
+
+	// Self write, effectively writing set bits in order to auto-clear them.
+	*dma_ch_status = *dma_ch_status;
+
+	return;
+}
+
+void dma_int_handler(volatile dma_int_status_t* dma_int_status) {
+	volatile dma_ch_int_status_t* dma_status_ch0 = (dma_ch_int_status_t*) (enet0_addr + dma_status_ch0_reg_addr);
+	volatile dma_ch_int_status_t* dma_status_ch1 = (dma_ch_int_status_t*) (enet0_addr + dma_status_ch1_reg_addr);
+
+	if      (dma_int_status -> dc0_is) dma_ch_int_handler(dma_status_ch0);
+	else if (dma_int_status -> dc1_is) dma_ch_int_handler(dma_status_ch1);
+
+	return;
+}
+
+void mtl_int_handler(void) {
+	return;
+}
+
+void mac_int_handler(void) {
+	return;
+}
+
 __attribute__((section(".after_vectors.enet_handler"), naked, noreturn)) void enet_handler(void) {
-	get_enet_status(status);
-	__asm__ volatile("bkpt");
+	volatile dma_int_status_t* dma_int_status = (dma_int_status_t*) (enet0_addr + dma_int_status_reg_addr);
+	if (dma_int_status -> dc0_is || dma_int_status -> dc1_is) dma_int_handler(dma_int_status);
+	if (dma_int_status -> mtl_is) mtl_int_handler();
+	if (dma_int_status -> mac_is) mac_int_handler();
+
 	// TODO: Clear the interrupt status flags, once they have been handled
+	__asm__ ("bkpt");
+
 	__asm__ volatile("bx lr");
 }
 
