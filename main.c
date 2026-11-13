@@ -17,10 +17,10 @@ void main(void) {
 	unsigned int val = 0;
 	do {
 		memset(buf, 0, 256);
-		const unsigned int buf_size = snprintf(buf, 256, "val: %u\n", val++);
+		const unsigned int buf_size = snprintf(buf, 256, "current temperature: %d\n", get_temp());
 		err = send_uart(buf, buf_size);
 		if (err) __asm__ ("bkpt");
-		delay_ms(3000);
+		delay_ms(5000);
 	} while (TRUE);
 
 	return;

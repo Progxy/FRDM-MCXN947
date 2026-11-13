@@ -174,6 +174,8 @@ __attribute((constructor(103))) int init_i3c(void) {
 	clear_peripheral_reset_ctrl(3, (1U << I3C_0_RST));
 	clear_peripheral_reset_ctrl(3, (1U << I3C_1_RST));
 
+	// TODO: Should try the suggested configs for Fm and Fm+ modes from docs,
+	// also trying toggling odhpp alternatively
 	mconfig_t mconfig_ = {0};
 	mconfig_.mstena = 1;
 	mconfig_.hkeep = 0;
@@ -227,7 +229,6 @@ int __send_i2c(const I3CInterface interface, const uint8_t addr, const void* dat
 		*mwdatab = (is_eom << 16) | (is_eom << 8) | ((uint8_t*) data)[i];
 	}
 
-	unsigned int cnt = 0;
 	volatile mdata_ctrl_t* md_ = (mdata_ctrl_t*) (i3c_addr + mdata_ctrl_addr);
 	while (!(mstatus -> complete || mstatus -> err_warn)) delay_us(1);
 
@@ -267,7 +268,7 @@ int __recv_i2c(const I3CInterface interface, const uint8_t addr, void* data, con
 	mctrl_.ibi_resp = 0;
 	mctrl_.dir = I3C_READ;
 	mctrl_.addr = addr;
-	mctrl_.rd_term = size + 1;
+	mctrl_.rd_term = size;
 	*mctrl = mctrl_;
 
 	volatile uint32_t* mrdatab  = (uint32_t*)  (i3c_addr + mrdatab_addr);
@@ -275,9 +276,14 @@ int __recv_i2c(const I3CInterface interface, const uint8_t addr, void* data, con
 	for (unsigned int i = 0; i < size; ++i) {
 		while (!mstatus -> rxpend) delay_us(1);
 		((uint8_t*) data)[i] = *mrdatab;
+		if (i == size - 2) {
+			mctrl_.rd_term = 1;
+			*mctrl = mctrl_;
+		}
 	}
 
 	while (!(mstatus -> complete || mstatus -> err_warn)) delay_us(1);
+
 	if (mstatus -> err_warn) {
 		merrwarn_t* merrwarn = (merrwarn_t*) (i3c_addr + merr_warn_addr);
 		if (merrwarn -> nack) return -I3C_SLAVE_NACK;

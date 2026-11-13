@@ -201,7 +201,7 @@ UNUSED_FUNCTION static int vsnprintf(char* str, size_t size, const char* format,
 			uint32_t var_ptr = (uint32_t) va_arg(args, void*);
 			str_index += to_hex_str(str + str_index, (uint8_t*)&var_ptr, sizeof(var_ptr));
 			++i;
-		} else if (starts_with((char*) format + i, "%d") || starts_with((char*) format + i, "%i")) {
+		} else if (starts_with((char*) format + i, "%d") || starts_with((char*) format + i, "%i") || starts_with((char*) format + i, "%ld")) {
 			int var_int = va_arg(args, int);
 			if (var_int < 0) {
 				if (1 + str_index >= size) return str_index;
@@ -210,6 +210,7 @@ UNUSED_FUNCTION static int vsnprintf(char* str, size_t size, const char* format,
 			if (MAX_NUM_LEN + str_index >= size) return str_index;
 			unsigned int var_uint = __abs(var_int);
 			str_index += to_dec_str(str + str_index, (uint8_t*)&var_uint, sizeof(var_uint));
+			if (starts_with((char*) format + i, "%ld")) i++;
 			++i;
 		} else if (starts_with((char*) format + i, "%u")) {
 			if (MAX_NUM_LEN + str_index >= size) return str_index;
