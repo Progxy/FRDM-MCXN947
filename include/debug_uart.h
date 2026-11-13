@@ -257,7 +257,6 @@ __attribute((constructor(102))) int init_debug_uart() {
 
 int send_uart(const void* data, const unsigned int size) {
 	volatile uart_fifo_t* uart_fifo = (uart_fifo_t*) (lp_uart4_addr + uart_fifo_addr);
-	volatile uart_water_t* uart_water = (uart_water_t*) (lp_uart4_addr + uart_water_addr);
 	volatile uart_stat_t* uart_stat = (uart_stat_t*) (lp_uart4_addr + uart_stat_addr);
 	volatile uart_data_t* uart_data = (uart_data_t*) (lp_uart4_addr + uart_data_addr);
 

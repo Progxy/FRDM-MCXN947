@@ -195,16 +195,6 @@ __attribute((constructor(103))) int init_i3c(void) {
 	return I3C_OK;
 }
 
-int init_i2c_tx(const uint8_t addr) {
-	(void)addr;
-	return I3C_OK;
-}
-
-int init_i3c_tx(const uint8_t addr) {
-	(void)addr;
-	return I3C_OK;
-}
-
 #define send_i2c(addr, data, size, emit_stop) __send_i2c(I3C0, addr, data, size, emit_stop)
 int __send_i2c(const I3CInterface interface, const uint8_t addr, const void* data, const unsigned int size, const uint8_t emit_stop) {
 	if (data == NULL || size == 0) return -I3C_INVALID_BUFFER;
@@ -229,7 +219,6 @@ int __send_i2c(const I3CInterface interface, const uint8_t addr, const void* dat
 		*mwdatab = (is_eom << 16) | (is_eom << 8) | ((uint8_t*) data)[i];
 	}
 
-	volatile mdata_ctrl_t* md_ = (mdata_ctrl_t*) (i3c_addr + mdata_ctrl_addr);
 	while (!(mstatus -> complete || mstatus -> err_warn)) delay_us(1);
 
 	if (mstatus -> err_warn) {

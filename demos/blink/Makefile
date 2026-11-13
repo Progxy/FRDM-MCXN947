@@ -8,7 +8,7 @@ clean:
 	rm -rf ../../build
 
 ../../build/blink.elf: blink.c ../../build/startup.o
-	arm-none-eabi-gcc $(CFLAGS) $(LDFLAGS) $^  -o $@
+	arm-none-eabi-gcc $(CFLAGS) $(LDFLAGS) $^ -o $@
 
 flash: ../../build/blink.elf
 	$(LINK_SERVER) flash auto load $<

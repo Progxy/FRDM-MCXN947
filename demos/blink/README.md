@@ -25,7 +25,6 @@ Connect the external LED to your development board as follows:
 
 ```bash
 make flash
-
 ```
 
 ---
