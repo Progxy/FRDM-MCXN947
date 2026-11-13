@@ -94,7 +94,8 @@ int enable_usb_phy(void) {
 	int err = update_sosc_clk_freq(SOSC_20_30MHZ);
 	if (err) return -1;
 
-	clock_ctrl_set((1U << CLKIN_ENA_FM_USBH_LPT) | (1U << CLKIN_ENA) | (1U << FRO1MHZ_CLK_ENA));
+	// TODO: Should enable UPLL (aka USB_PLL_CLK)
+	clock_ctrl_set((1U << CLKIN_ENA_FM_USBH_LPT) | (1U << FRO1MHZ_CLK_ENA));
 	set_ahb_clk_ctrl(2, (1U << USB_HS) | (1U << USB_HS_PHY));
 
 	usb_phy_ctrl_clr -> sftrst = 1;
