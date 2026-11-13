@@ -136,6 +136,31 @@ static_assert(sizeof(mctrl_t)      == 4, "Size must be 4 bytes");
 static_assert(sizeof(merrwarn_t)   == 4, "Size must be 4 bytes");
 static_assert(sizeof(mdata_ctrl_t) == 4, "Size must be 4 bytes");
 
+// TODO: Revise the signature of this function as it is a bit too ugly
+int init_i3c_pins(const uint8_t sda_port, const uint8_t sda_pin, const uint8_t scl_port, const uint8_t scl_pin, const uint8_t pur_port, const uint8_t pur_pin) {
+	int err = update_pin_function(sda_port, sda_pin, (1U << PS), PS_BITMASK);
+	if (err) return -I3C_INIT_FAIL;
+
+	update_pin_function(sda_port, sda_pin, (1U << PE), PE_BITMASK);
+	update_pin_function(sda_port, sda_pin, (1U << PV), PV_BITMASK);
+	update_pin_function(sda_port, sda_pin, (10U << MUX), MUX_BITMASK);
+	update_pin_function(sda_port, sda_pin, (1U << IBE), IBE_BITMASK);
+
+	err = update_pin_function(1, scl_pin, (1U << PS), PS_BITMASK);
+	if (err) return -I3C_INIT_FAIL;
+
+	update_pin_function(scl_port, scl_pin, (1U << PE), PE_BITMASK);
+	update_pin_function(scl_port, scl_pin, (0U << PV), PV_BITMASK);
+	update_pin_function(scl_port, scl_pin, (10U << MUX), MUX_BITMASK);
+	update_pin_function(scl_port, scl_pin, (1U << IBE), IBE_BITMASK);
+
+	err = update_pin_function(pur_port, pur_pin, (10U << MUX), MUX_BITMASK);
+	if (err) return -I3C_INIT_FAIL;
+	update_pin_function(pur_port, pur_pin, (1U << IBE), IBE_BITMASK);
+
+	return I3C_OK;
+}
+
 // NOTE: The I3C Registers require 32-bit access both in read and write mode.
 __attribute((constructor(103))) int init_i3c(void) {
 	clock_ctrl_clr(1U << CLKIN_ENA_FM_USBH_LPT);
@@ -150,23 +175,19 @@ __attribute((constructor(103))) int init_i3c(void) {
 	set_i3c1_clock(0x2, 0x00);
 	set_ahb_clk_ctrl(3, (1U << I3C_0) | (1U << I3C_1));
 
-	// Should also do the same for I3C0 pins?
 	set_ahb_clk_ctrl(0, (1U << PORT1));
-	err = update_pin_function(1, 16, (1U << PS), PS_BITMASK);
-	err = update_pin_function(1, 16, (1U << PE), PE_BITMASK);
-	err = update_pin_function(1, 16, (1U << PV), PV_BITMASK);
-	err = update_pin_function(1, 16, (10U << MUX), MUX_BITMASK);
-	err = update_pin_function(1, 16, (1U << IBE), IBE_BITMASK);
-	if (err) return -I3C_INIT_FAIL;
-	err = update_pin_function(1, 17, (1U << PS), PS_BITMASK);
-	err = update_pin_function(1, 17, (1U << PE), PE_BITMASK);
-	err = update_pin_function(1, 17, (0U << PV), PV_BITMASK);
-	err = update_pin_function(1, 17, (10U << MUX), MUX_BITMASK);
-	err = update_pin_function(1, 17, (1U << IBE), IBE_BITMASK);
-	if (err) return -I3C_INIT_FAIL;
-	err = update_pin_function(1, 11, (10U << MUX), MUX_BITMASK);
-	err = update_pin_function(1, 11, (1U << IBE), IBE_BITMASK);
-	if (err) return -I3C_INIT_FAIL;
+	err = init_i3c_pins(1, 16, 1, 17, 1, 11); // I3C1 pins
+	if (err) return err;
+
+	err = init_i3c_pins(0, 16, 0, 17, 0, 2); // I3C0 pins
+	if (err) return err;
+
+	// TODO: Those are extra pair of interfaces pins, note that the I3C1 conflicts with the debug console
+	// 	err = init_i3c_pins(1, 8, 1, 9, 1, 15); // I3C1 pins
+	// 	if (err) return err;
+	//
+	// 	err = init_i3c_pins(0, 20, 0, 21, 0, 22); // I3C0 pins
+	// 	if (err) return err;
 
 	// Reset I3C peripheral
 	set_peripheral_reset_ctrl(3, (1U << I3C_0_RST));
