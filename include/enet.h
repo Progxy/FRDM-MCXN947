@@ -700,7 +700,7 @@ __attribute__((constructor(104))) int init_enet(void) {
 	set_ahb_clk_ctrl(0, (1U << PORT0) | (1U << PORT1) | (1U << PORT2) | (1U << PORT3) | (1U << PORT4) | (1 << INPUT_MUX));
 	int err = 0;
 
-	// NOTE: P1_4,5,6,7 - P1_13,14,15 and P1_20,21 are the essential ones, the other could theoretically be skipped but would require
+	// NOTE: P1_4,5,6,7 - P1_13,14,15 and P1_20,21 are the essential ones, as the onboard ethernet phy controller only supports RMII mode
 	const uint8_t enet_pins[] = { 4, 5, 6, 7, 13, 14, 15, 20, 21 };
 	//const uint8_t enet_pins[] = { 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 };
 	for (unsigned int i = 0; i < sizeof(enet_pins); ++i) {

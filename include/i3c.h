@@ -195,18 +195,18 @@ __attribute((constructor(103))) int init_i3c(void) {
 	clear_peripheral_reset_ctrl(3, (1U << I3C_0_RST));
 	clear_peripheral_reset_ctrl(3, (1U << I3C_1_RST));
 
-	// TODO: Should try the suggested configs for Fm and Fm+ modes from docs,
-	// also trying toggling odhpp alternatively
 	mconfig_t mconfig_ = {0};
 	mconfig_.mstena = 1;
 	mconfig_.hkeep = 0;
-	mconfig_.ppbaud = 0;
-	mconfig_.pplow = 0;
-	mconfig_.odbaud = 7;
 	mconfig_.odstop = 1;
-	mconfig_.odhpp = 1;
-	mconfig_.i2c_baud = 6;
 	mconfig_.skew = 0;
+
+	// TODO: Fidget in order to get the right timing (working with onboard device, but not external ones)
+	mconfig_.odhpp = 0;
+	mconfig_.ppbaud = 1;
+	mconfig_.pplow = 0;
+	mconfig_.odbaud = 2;
+	mconfig_.i2c_baud = 9;
 
 	volatile mconfig_t* mconfig_i3c0 = (mconfig_t*) (i3c0_addr + mconfig_addr);
 	volatile mconfig_t* mconfig_i3c1 = (mconfig_t*) (i3c1_addr + mconfig_addr);

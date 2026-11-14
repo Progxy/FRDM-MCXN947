@@ -83,7 +83,7 @@ static uint8_t gain                             = 0x01;
 static als_uvs_meas_rate_t als_uvs_meas_rate = {0};
 
 static uint8_t ltr_read_register(uint8_t reg, bool terminate) {
-	uint8_t status = __send_i2c(I3C1, LTR_ADDRESS, &reg, 1, FALSE);
+	int status = __send_i2c(I3C1, LTR_ADDRESS, &reg, 1, FALSE);
 	if (status) __asm__("bkpt");
 
 	uint8_t data = 0;
