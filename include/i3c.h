@@ -123,7 +123,7 @@ typedef struct {
 	uint8_t rx_empty: 1;
 } __attribute__((packed)) mdata_ctrl_t;
 
-typedef enum { I3C_ON, I3C_OFF, I3C_CAPABLE, I2C } I3CControllerMode;
+typedef enum { I3C_OFF = 0, I3C_ON, I3C_CAPABLE, I2C_MODE } I3CControllerMode;
 typedef enum { I3C_REQ = 0, I2C_REQ = 1, I3C_DDR_REQ = 2 } I3CRequestType;
 typedef enum { I3C_WRITE = 0, I3C_READ = 1 } I3CDirection;
 typedef enum { I3C_ACK = 0, I3C_NACK = 1, I3C_ACK_MB = 2, I3C_MANUAL = 3 } I3CIbiResponse;
@@ -154,6 +154,7 @@ int init_i3c_pins(const uint8_t sda_port, const uint8_t sda_pin, const uint8_t s
 	update_pin_function(scl_port, scl_pin, (10U << MUX), MUX_BITMASK);
 	update_pin_function(scl_port, scl_pin, (1U << IBE), IBE_BITMASK);
 
+	// Required for I2C compatibility mode (as only SCL works push-pull, while SDA is open-drain)
 	err = update_pin_function(pur_port, pur_pin, (10U << MUX), MUX_BITMASK);
 	if (err) return -I3C_INIT_FAIL;
 	update_pin_function(pur_port, pur_pin, (1U << IBE), IBE_BITMASK);
@@ -166,9 +167,7 @@ __attribute((constructor(103))) int init_i3c(void) {
 	clock_ctrl_clr(1U << CLKIN_ENA_FM_USBH_LPT);
 	clock_ctrl_set((1U << CLKIN_ENA));
 
-	int err = 0;
-	// Enable clock with syscon, ensure that the clock runs at 24Mhz
-	err = update_sosc_clk_freq(SOSC_20_30MHZ);
+	int err = update_sosc_clk_freq(SOSC_20_30MHZ);
 	if (err) return -I3C_INIT_FAIL;
 
 	set_i3c0_clock(0x2, 0x00);
@@ -196,17 +195,16 @@ __attribute((constructor(103))) int init_i3c(void) {
 	clear_peripheral_reset_ctrl(3, (1U << I3C_1_RST));
 
 	mconfig_t mconfig_ = {0};
-	mconfig_.mstena = 1;
+	mconfig_.mstena = I3C_ON;
 	mconfig_.hkeep = 0;
 	mconfig_.odstop = 1;
 	mconfig_.skew = 0;
-
-	// TODO: Fidget in order to get the right timing (working with onboard device, but not external ones)
 	mconfig_.odhpp = 0;
-	mconfig_.ppbaud = 1;
 	mconfig_.pplow = 0;
-	mconfig_.odbaud = 2;
-	mconfig_.i2c_baud = 9;
+
+	mconfig_.ppbaud = 0;
+	mconfig_.odbaud = 3;
+	mconfig_.i2c_baud = 6;
 
 	volatile mconfig_t* mconfig_i3c0 = (mconfig_t*) (i3c0_addr + mconfig_addr);
 	volatile mconfig_t* mconfig_i3c1 = (mconfig_t*) (i3c1_addr + mconfig_addr);
@@ -232,8 +230,8 @@ int __send_i2c(const I3CInterface interface, const uint8_t addr, const void* dat
 	mctrl.rd_term = 1;
 	*mctrl_reg = *((uint32_t*) &mctrl);
 
-	volatile uint32_t* mwdatab  = (uint32_t*)  (i3c_addr + mwdatab_addr);
 	volatile mstatus_t* mstatus = (mstatus_t*) (i3c_addr + mstatus_addr);
+	volatile uint32_t* mwdatab  = (uint32_t*)  (i3c_addr + mwdatab_addr);
 	for (unsigned int i = 0; i < size; ++i) {
 		while (!mstatus -> tx_not_full) delay_us(1);
 		uint32_t is_eom = i == (size - 1);

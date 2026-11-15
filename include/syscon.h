@@ -61,7 +61,7 @@ void set_i3c0_clock(uint8_t sel, uint8_t div) {
 	volatile uint32_t* i3c0_clock_sel = (uint32_t*) (syscon_addr + syscon_i3c0_clock_sel);
 	*i3c0_clock_sel = sel & 0x07;
 	volatile uint32_t* i3c0_clock_div = (uint32_t*) (syscon_addr + syscon_i3c0_clock_div);
-	*i3c0_clock_div = div & 0xFF;
+	*i3c0_clock_div = div;
 	return;
 }
 
@@ -69,7 +69,7 @@ void set_i3c1_clock(uint8_t sel, uint8_t div) {
 	volatile uint32_t* i3c1_clock_sel = (uint32_t*) (syscon_addr + syscon_i3c1_clock_sel);
 	*i3c1_clock_sel = sel & 0x07;
 	volatile uint32_t* i3c1_clock_div = (uint32_t*) (syscon_addr + syscon_i3c1_clock_div);
-	*i3c1_clock_div = div & 0xFF;
+	*i3c1_clock_div = div;
 	return;
 }
 
@@ -119,19 +119,19 @@ void enet_ptp_ref_clk_select(uint8_t val) {
 
 void set_pll1_clk0_div(const uint8_t div_val) {
 	volatile uint32_t* pll1_clk0_div = (uint32_t*) (syscon_addr + syscon_pll1_clk0_div_addr);
-	*pll1_clk0_div = ((div_val == 0) << 30) | (div_val - 1);
+	*pll1_clk0_div = div_val;
 	return;
 }
 
 void set_enet_rmii_clk_div(const uint8_t div_val) {
 	volatile uint32_t* enet_rmii_clk_div = (uint32_t*) (syscon_addr + syscon_enet_rmii_clk_div_addr);
-	*enet_rmii_clk_div = ((div_val == 0) << 30) | (div_val - 1);
+	*enet_rmii_clk_div = div_val;
 	return;
 }
 
 void set_enet_ptp_ref_clk_div(const uint8_t div_val) {
 	volatile uint32_t* enet_ptp_ref_clk_div = (uint32_t*) (syscon_addr + syscon_enet_ptp_ref_clk_div_addr);
-	*enet_ptp_ref_clk_div = ((div_val == 0) << 30) | (div_val - 1);
+	*enet_ptp_ref_clk_div = div_val;
 	return;
 }
 
