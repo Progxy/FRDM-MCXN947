@@ -170,10 +170,6 @@ __attribute((constructor(103))) int init_i3c(void) {
 	int err = update_sosc_clk_freq(SOSC_20_30MHZ);
 	if (err) return -I3C_INIT_FAIL;
 
-	set_i3c0_clock(0x2, 0x00);
-	set_i3c1_clock(0x2, 0x00);
-	set_ahb_clk_ctrl(3, (1U << I3C_0) | (1U << I3C_1));
-
 	set_ahb_clk_ctrl(0, (1U << PORT1));
 	err = init_i3c_pins(1, 16, 1, 17, 1, 11); // I3C1 pins
 	if (err) return err;
@@ -194,8 +190,12 @@ __attribute((constructor(103))) int init_i3c(void) {
 	clear_peripheral_reset_ctrl(3, (1U << I3C_0_RST));
 	clear_peripheral_reset_ctrl(3, (1U << I3C_1_RST));
 
+	set_i3c0_clock(0x2, 0x00);
+	set_i3c1_clock(0x2, 23);
+	set_ahb_clk_ctrl(3, (1U << I3C_0) | (1U << I3C_1));
+
 	mconfig_t mconfig_ = {0};
-	mconfig_.mstena = I3C_ON;
+	mconfig_.mstena = I2C_MODE; //I3C_ON;
 	mconfig_.hkeep = 0;
 	mconfig_.odstop = 1;
 	mconfig_.skew = 0;
@@ -204,7 +204,7 @@ __attribute((constructor(103))) int init_i3c(void) {
 
 	mconfig_.ppbaud = 0;
 	mconfig_.odbaud = 3;
-	mconfig_.i2c_baud = 6;
+	mconfig_.i2c_baud = 7; //6;
 
 	volatile mconfig_t* mconfig_i3c0 = (mconfig_t*) (i3c0_addr + mconfig_addr);
 	volatile mconfig_t* mconfig_i3c1 = (mconfig_t*) (i3c1_addr + mconfig_addr);
@@ -220,6 +220,7 @@ int __send_i2c(const I3CInterface interface, const uint8_t addr, const void* dat
 	else if (interface > I3C1) return -I3C_INVALID_INTERFACE;
 
 	const unsigned int i3c_addr = i3c_addrs[interface];
+
 	volatile uint32_t* mctrl_reg = (uint32_t*) (i3c_addr + mctrl_addr);
 	mctrl_t mctrl = *(mctrl_t*)mctrl_reg;
 	mctrl.request = I3C_EMIT_START_ADDR;
@@ -234,7 +235,7 @@ int __send_i2c(const I3CInterface interface, const uint8_t addr, const void* dat
 	volatile uint32_t* mwdatab  = (uint32_t*)  (i3c_addr + mwdatab_addr);
 	for (unsigned int i = 0; i < size; ++i) {
 		while (!mstatus -> tx_not_full) delay_us(1);
-		uint32_t is_eom = i == (size - 1);
+		const uint32_t is_eom = (i == (size - 1)) & 0x01;
 		*mwdatab = (is_eom << 16) | (is_eom << 8) | ((uint8_t*) data)[i];
 	}
 
@@ -273,7 +274,7 @@ int __recv_i2c(const I3CInterface interface, const uint8_t addr, void* data, con
 	mctrl_t mctrl_ = *mctrl;
 	mctrl_.request = I3C_EMIT_START_ADDR;
 	mctrl_.type = I2C_REQ;
-	mctrl_.ibi_resp = 0;
+	mctrl_.ibi_resp = I3C_ACK;
 	mctrl_.dir = I3C_READ;
 	mctrl_.addr = addr;
 	mctrl_.rd_term = size;

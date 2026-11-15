@@ -36,8 +36,8 @@ typedef struct {
 } scd_data_t;
 
 #define scd_read_address(addr, dest, cnt) __scd_read_address((addr), (dest), (cnt), 1)
-void __scd_read_address(uint16_t addr, scd_response_t* dest, uint8_t cnt, uint16_t exec_time_ms) {
-	uint8_t buf[3] = {0};
+void __scd_read_address(const uint16_t addr, scd_response_t* dest, const uint8_t cnt, const uint16_t exec_time_ms) {
+	uint8_t buf[2] = {0};
 	buf[0] = (uint8_t) ((addr & 0xFF00) >> 8);
 	buf[1] = (uint8_t) ((addr & 0x00FF) >> 0);
 

@@ -77,9 +77,9 @@ static_assert(sizeof(als_uvs_meas_rate_t) == 1, "Size must be 1 byte");
 
 static const uint16_t measurement_rate_ms[8] = { 25, 50, 100, 200, 500, 1000, 2000, 2000 };
 static const uint8_t res_bit_masks[6]  = { 0x0F, 0x07, 0x03, 0x01, 0xFF, 0x1F };
-static uint8_t main_status                      = 0x20;
-static uint8_t main_ctrl                        = 0x00;
-static uint8_t gain                             = 0x01;
+static uint8_t main_status                   = 0x20;
+static uint8_t main_ctrl                     = 0x00;
+static uint8_t gain                          = 0x01;
 static als_uvs_meas_rate_t als_uvs_meas_rate = {0};
 
 static uint8_t ltr_read_register(uint8_t reg, bool terminate) {
@@ -94,7 +94,7 @@ static uint8_t ltr_read_register(uint8_t reg, bool terminate) {
 }
 
 static void ltr_write_register(uint8_t reg, uint8_t data) {
-	uint8_t d[2] = {reg, data};
+	uint8_t d[2] = { reg, data };
 	uint8_t status = __send_i2c(I3C1, LTR_ADDRESS, d, 2, TRUE);
 	if (status) __asm__("bkpt");
 	return;
