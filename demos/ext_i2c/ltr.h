@@ -165,7 +165,7 @@ uint32_t ltr_sample_uvi(void) {
 	return uvi;
 }
 
-void init_ltr(void) {
+void ltr_init(void) {
 	main_ctrl = ltr_read_register(MAIN_CTRL, TRUE);
 	uint8_t als_uvs_meas_rate_ = ltr_read_register(ALS_UVS_MEAS_RATE, TRUE);
 	als_uvs_meas_rate = *((als_uvs_meas_rate_t*) &als_uvs_meas_rate_);

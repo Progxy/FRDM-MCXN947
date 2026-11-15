@@ -9,8 +9,9 @@
 #define UNUSED_FUNCTION __attribute__((unused))
 #define MIN(a, b) ((a) <= (b) ? (a) : (b))
 #define MAX(a, b) ((a) >= (b) ? (a) : (b))
+#define CLAMP(val, min, max) (((val) >= (max)) ? (max) : (((val) <= (min)) ? (min) : (val)))
 
-UNUSED_FUNCTION static void memcpy(void* dest, void* src, int size) {
+UNUSED_FUNCTION static void memcpy(void* dest, const void* src, int size) {
 	if (dest == NULL || src == NULL) return;
 	uint8_t* dest_b = (uint8_t*) dest;
 	uint8_t* src_b  = (uint8_t*) src;
@@ -18,7 +19,7 @@ UNUSED_FUNCTION static void memcpy(void* dest, void* src, int size) {
 	return;
 }
 
-UNUSED_FUNCTION static void memset(void* dest, uint8_t value, int size) {
+UNUSED_FUNCTION static void memset(void* dest, const uint8_t value, int size) {
 	if (dest == NULL) return;
 	uint8_t* dest_b = (uint8_t*) dest;
 	while (size--) *dest_b++ = value;
@@ -248,6 +249,11 @@ UNUSED_FUNCTION static int vsnprintf(char* str, size_t size, const char* format,
 	}
 
 	return str_index;
+}
+
+UNUSED_FUNCTION static int random(const unsigned int max) {
+	// TODO: Implement me
+	return max;
 }
 
 #endif //_UTILS_H

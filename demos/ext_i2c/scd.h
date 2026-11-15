@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <fpu.h>
+#include <i3c.h>
 #include <utils.h>
 
 typedef enum {
