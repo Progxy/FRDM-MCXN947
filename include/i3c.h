@@ -123,6 +123,15 @@ typedef struct {
 	uint8_t rx_empty: 1;
 } __attribute__((packed)) mdata_ctrl_t;
 
+typedef struct {
+	uint8_t sda_port;
+	uint8_t sda_pin;
+	uint8_t scl_port;
+	uint8_t scl_pin;
+	uint8_t pur_port;
+	uint8_t pur_pin;
+} i3c_pin_config_t;
+
 typedef enum { I3C_OFF = 0, I3C_ON, I3C_CAPABLE, I2C_MODE } I3CControllerMode;
 typedef enum { I3C_REQ = 0, I2C_REQ = 1, I3C_DDR_REQ = 2 } I3CRequestType;
 typedef enum { I3C_WRITE = 0, I3C_READ = 1 } I3CDirection;
@@ -136,28 +145,35 @@ static_assert(sizeof(mctrl_t)      == 4, "Size must be 4 bytes");
 static_assert(sizeof(merrwarn_t)   == 4, "Size must be 4 bytes");
 static_assert(sizeof(mdata_ctrl_t) == 4, "Size must be 4 bytes");
 
-// TODO: Revise the signature of this function as it is a bit too ugly
-int init_i3c_pins(const uint8_t sda_port, const uint8_t sda_pin, const uint8_t scl_port, const uint8_t scl_pin, const uint8_t pur_port, const uint8_t pur_pin) {
-	int err = update_pin_function(sda_port, sda_pin, (1U << PS), PS_BITMASK);
+// NOTE: the I3C1b conflicts with the debug console
+static const i3c_pin_config_t i3c1a_pin_config = { 1, 16, 1, 17, 1, 11 };
+static const i3c_pin_config_t i3c0a_pin_config = { 0, 16, 0, 17, 0, 2 };
+static const i3c_pin_config_t i3c1b_pin_config = { 1, 8, 1, 9, 1, 15 };
+static const i3c_pin_config_t i3c0b_pin_config = { 0, 20, 0, 21, 0, 22 };
+
+int init_i3c_pins(const i3c_pin_config_t i3c_pin_config, const uint8_t enable_pur) {
+	int err = update_pin_function(i3c_pin_config.sda_port, i3c_pin_config.sda_pin, (1U << PS), PS_BITMASK);
 	if (err) return -I3C_INIT_FAIL;
 
-	update_pin_function(sda_port, sda_pin, (1U << PE), PE_BITMASK);
-	update_pin_function(sda_port, sda_pin, (1U << PV), PV_BITMASK);
-	update_pin_function(sda_port, sda_pin, (10U << MUX), MUX_BITMASK);
-	update_pin_function(sda_port, sda_pin, (1U << IBE), IBE_BITMASK);
+	update_pin_function(i3c_pin_config.sda_port, i3c_pin_config.sda_pin, (1U << PE), PE_BITMASK);
+	update_pin_function(i3c_pin_config.sda_port, i3c_pin_config.sda_pin, (1U << PV), PV_BITMASK);
+	update_pin_function(i3c_pin_config.sda_port, i3c_pin_config.sda_pin, (10U << MUX), MUX_BITMASK);
+	update_pin_function(i3c_pin_config.sda_port, i3c_pin_config.sda_pin, (1U << IBE), IBE_BITMASK);
 
-	err = update_pin_function(1, scl_pin, (1U << PS), PS_BITMASK);
+	err = update_pin_function(i3c_pin_config.scl_port, i3c_pin_config.scl_pin, (1U << PS), PS_BITMASK);
 	if (err) return -I3C_INIT_FAIL;
 
-	update_pin_function(scl_port, scl_pin, (1U << PE), PE_BITMASK);
-	update_pin_function(scl_port, scl_pin, (0U << PV), PV_BITMASK);
-	update_pin_function(scl_port, scl_pin, (10U << MUX), MUX_BITMASK);
-	update_pin_function(scl_port, scl_pin, (1U << IBE), IBE_BITMASK);
+	update_pin_function(i3c_pin_config.scl_port, i3c_pin_config.scl_pin, (1U << PE), PE_BITMASK);
+	update_pin_function(i3c_pin_config.scl_port, i3c_pin_config.scl_pin, (0U << PV), PV_BITMASK);
+	update_pin_function(i3c_pin_config.scl_port, i3c_pin_config.scl_pin, (10U << MUX), MUX_BITMASK);
+	update_pin_function(i3c_pin_config.scl_port, i3c_pin_config.scl_pin, (1U << IBE), IBE_BITMASK);
 
-	// Required for I2C compatibility mode (as only SCL works push-pull, while SDA is open-drain)
-	err = update_pin_function(pur_port, pur_pin, (10U << MUX), MUX_BITMASK);
-	if (err) return -I3C_INIT_FAIL;
-	update_pin_function(pur_port, pur_pin, (1U << IBE), IBE_BITMASK);
+	if (enable_pur) {
+		// Required for I3C mode when performing transfers with I2C compatibility mode (SDA is open-drain)
+		err = update_pin_function(i3c_pin_config.pur_port, i3c_pin_config.pur_pin, (10U << MUX), MUX_BITMASK);
+		if (err) return -I3C_INIT_FAIL;
+		update_pin_function(i3c_pin_config.pur_port, i3c_pin_config.pur_pin, (1U << IBE), IBE_BITMASK);
+	}
 
 	return I3C_OK;
 }
@@ -171,18 +187,11 @@ __attribute((constructor(103))) int init_i3c(void) {
 	if (err) return -I3C_INIT_FAIL;
 
 	set_ahb_clk_ctrl(0, (1U << PORT1));
-	err = init_i3c_pins(1, 16, 1, 17, 1, 11); // I3C1 pins
+	err = init_i3c_pins(i3c1a_pin_config, TRUE);
 	if (err) return err;
 
-	err = init_i3c_pins(0, 16, 0, 17, 0, 2); // I3C0 pins
+	err = init_i3c_pins(i3c0a_pin_config, TRUE);
 	if (err) return err;
-
-	// TODO: Those are extra pair of interfaces pins, note that the I3C1 conflicts with the debug console
-	// 	err = init_i3c_pins(1, 8, 1, 9, 1, 15); // I3C1 pins
-	// 	if (err) return err;
-	//
-	// 	err = init_i3c_pins(0, 20, 0, 21, 0, 22); // I3C0 pins
-	// 	if (err) return err;
 
 	// Reset I3C peripheral
 	set_peripheral_reset_ctrl(3, (1U << I3C_0_RST));
@@ -191,11 +200,15 @@ __attribute((constructor(103))) int init_i3c(void) {
 	clear_peripheral_reset_ctrl(3, (1U << I3C_1_RST));
 
 	set_i3c0_clock(0x2, 0x00);
-	set_i3c1_clock(0x2, 23);
+	set_i3c1_clock(0x2, 0x00);
 	set_ahb_clk_ctrl(3, (1U << I3C_0) | (1U << I3C_1));
 
+	// NOTE: The I3C module has the following configurations:
+	//       * I3C -> SDA and SCL push/pull (no pull up resistors are required);
+	//       * I3C-I2C -> SDA is open drain and SCL is push pull (pull up only on SDA line, the uC PUR pin can be used)
+	//       * I2C -> SDA and SCL are both open-drain (pull up resistors are required)
 	mconfig_t mconfig_ = {0};
-	mconfig_.mstena = I2C_MODE; //I3C_ON;
+	mconfig_.mstena = I3C_ON;
 	mconfig_.hkeep = 0;
 	mconfig_.odstop = 1;
 	mconfig_.skew = 0;
@@ -204,7 +217,7 @@ __attribute((constructor(103))) int init_i3c(void) {
 
 	mconfig_.ppbaud = 0;
 	mconfig_.odbaud = 3;
-	mconfig_.i2c_baud = 7; //6;
+	mconfig_.i2c_baud = 6;
 
 	volatile mconfig_t* mconfig_i3c0 = (mconfig_t*) (i3c0_addr + mconfig_addr);
 	volatile mconfig_t* mconfig_i3c1 = (mconfig_t*) (i3c1_addr + mconfig_addr);
@@ -220,7 +233,6 @@ int __send_i2c(const I3CInterface interface, const uint8_t addr, const void* dat
 	else if (interface > I3C1) return -I3C_INVALID_INTERFACE;
 
 	const unsigned int i3c_addr = i3c_addrs[interface];
-
 	volatile uint32_t* mctrl_reg = (uint32_t*) (i3c_addr + mctrl_addr);
 	mctrl_t mctrl = *(mctrl_t*)mctrl_reg;
 	mctrl.request = I3C_EMIT_START_ADDR;
