@@ -396,7 +396,7 @@ int reset_usb_controller(const uint8_t endpts_cnt) {
 	volatile usb_mode_t* usb_mode = (usb_mode_t*) (usb_addr + usb_mode_offset);
 
 	usb_cmd -> rs = 0;
-	while (TRUE){
+	while (TRUE) {
 		delay_us(1);
 		if (usb_status -> hch) break;
 		else if (usb_mode -> cm == IDLE) break;
@@ -427,23 +427,16 @@ int reset_usb_controller(const uint8_t endpts_cnt) {
 	usb_int_enable -> ue = 1;
 	usb_int_enable -> uee = 1;
 	usb_int_enable -> pce = 1;
+	usb_int_enable -> see = 1;
 	usb_int_enable -> ure = 1;
+	usb_int_enable -> sre = 1;
 	usb_int_enable -> sle = 1;
 
 	nvic_enable_irq(IRQ_USBHS1_PHY);
 	nvic_enable_irq(IRQ_USBHS1);
 
-	usb_status_t st = *usb_status;
 	usb_cmd -> rs = 1;
 	while (usb_status -> hch) delay_us(1);
-
-	st = *usb_status;
-	if (st.hch) __asm__ volatile("bkpt");
-	__asm__ volatile ("bkpt");
-
-	st = *usb_status;
-	if (st.hch) __asm__ volatile("bkpt");
-	__asm__ volatile ("bkpt");
 
 	return 0;
 }
@@ -618,7 +611,8 @@ int init_usb_device(const uint8_t endpts_cnt, const USBType* usb_types, const ui
 	int err = change_dcdc_voltage_lvl(0x02);
 	if (err) return err;
 
-	enable_usb_phy();
+	err = enable_usb_phy();
+	if (err) return err;
 
 	if (endpts_cnt > MAX_ENDPTS) return -1;
 
@@ -654,9 +648,20 @@ void usbfs_handler(void) {
 	__asm__ volatile("bx lr");
 }
 
+usb_status_t stat = {0};
+
 __attribute__((section(".after_vectors.usbhs_handler"), naked, noreturn))
 void usbhs_handler(void) {
-	__asm__ volatile("bkpt");
+	volatile usb_status_t* usb_status = (usb_status_t*) (usb_addr + usb_status_offset);
+
+	if (usb_status -> uri) {
+		if (handle_bus_reset()) __asm__ ("bkpt");
+	}
+
+	stat = *usb_status;
+	if (stat.sri) __asm__("bkpt");
+
+	__asm__("bkpt");
 	__asm__ volatile("bx lr");
 }
 

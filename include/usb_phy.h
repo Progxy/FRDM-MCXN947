@@ -90,13 +90,12 @@ int enable_usb_phy(void) {
 	volatile usb_phy_pll_sic_t* usb_phy_pll_sic = (usb_phy_pll_sic_t*) (usb_phy_addr + usb_phy_pll_sic_offset);
 	volatile usb_phy_anactrl_t* usb_phy_anactrl_set = (usb_phy_anactrl_t*) (usb_phy_addr + usb_phy_anactrl_set_offset);
 
-	// NOTE: to the FRDM-MCXN947 external clock reference pin is connected a 24MHz XOSC
-	int err = update_sosc_clk_freq(SOSC_20_30MHZ);
-	if (err) return -1;
-
-	// TODO: Should enable UPLL (aka USB_PLL_CLK)
+	clock_ctrl_clr((1U << CLKIN_ENA));
 	clock_ctrl_set((1U << CLKIN_ENA_FM_USBH_LPT) | (1U << FRO1MHZ_CLK_ENA));
 	set_ahb_clk_ctrl(2, (1U << USB_HS) | (1U << USB_HS_PHY));
+
+	int err = update_sosc_clk_freq(SOSC_20_30MHZ);
+	if (err) return -1;
 
 	usb_phy_ctrl_clr -> sftrst = 1;
 	usb_phy_ctrl_clr -> clkgate = 1;
@@ -106,6 +105,11 @@ int enable_usb_phy(void) {
 
 	usb_phy_ctrl_set -> en_autoclr_phy_pwd = 1;
 	usb_phy_ctrl_set -> en_autoclr_clkgate = 1;
+
+	// TODO: Is it required, is it a separate clock source or is it required
+	//       after enabling of this block, as it hangs waiting for the clock to become
+	//       valid at the moment
+	//int err = enable_upll_clk();
 
 	usb_phy_pll_sic -> pll_div_sel_low = 0x02;
 	usb_phy_pll_sic -> pll_div_sel_high = 0x00;

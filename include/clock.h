@@ -128,6 +128,19 @@ typedef struct {
 	uint8_t rsv3: 1;
 } __attribute__((packed)) scg_spll_csr_t;
 
+typedef struct {
+	uint16_t rsv;
+	uint8_t upll_cm: 1;
+	uint8_t upll_cmre: 1;
+	uint8_t rsv1: 2;
+	uint8_t rsv2: 3;
+	uint8_t lk: 1;
+	uint8_t upll_vld: 1;
+	uint8_t upll_sel: 1;
+	uint8_t upll_err: 1;
+	uint8_t rsv3: 5;
+} __attribute__((packed)) scg_upll_csr_t;
+
 typedef scg_rccr_t scg_csr_t;
 
 static_assert(sizeof(scg_csr_t)       == 4, "Size must be 4 bytes");
@@ -140,8 +153,9 @@ static_assert(sizeof(scg_sosc_cfg_t)  == 4, "Size must be 4 bytes");
 static_assert(sizeof(scg_sirc_csr_t)  == 4, "Size must be 4 bytes");
 static_assert(sizeof(scg_spll_ctrl_t) == 4, "Size must be 4 bytes");
 static_assert(sizeof(scg_spll_csr_t)  == 4, "Size must be 4 bytes");
+static_assert(sizeof(scg_upll_csr_t)  == 4, "Size must be 4 bytes");
 
-typedef enum { FIRC_48MHZ= 0, FIRC_144MHZ = 1 } FIRCClkFreq;
+typedef enum { FIRC_48MHZ = 0, FIRC_144MHZ = 1 } FIRCClkFreq;
 typedef enum { SOSC_16_20MHZ = 0, SOSC_20_30MHZ = 1, SOSC_30_50MHZ = 2, SOSC_50_66MHZ = 3 } SOSCClkFreq;
 
 const unsigned int scg_addr = 0x40044000;
@@ -160,6 +174,7 @@ const unsigned int scg_spll_mdiv_offset = 0x60C;
 const unsigned int scg_spll_ndiv_offset = 0x610;
 const unsigned int scg_spll_pdiv_offset = 0x614;
 const unsigned int scg_spll_lock_cnfg_offset = 0x618;
+const unsigned int scg_upll_csr_offset = 0x700;
 
 // NOTE: only perform 32-bit writes on SCG registers otherwise we'll get a transfer error
 FIRCClkFreq get_firc_clk_freq(void) {
@@ -330,6 +345,30 @@ int update_spll_clk_freq(const uint8_t n_div, const uint8_t p_div, const uint16_
 	spll_csr_.lk = 1;
 	*spll_csr = spll_csr_;
 	*trim_lock = 0x5A5A0000; // Reenable TRIM lock mechanism
+
+	return 0;
+}
+
+// NOTE: UPLL (aka usb_pll_clock) takes in input the clk_in external clock, which is a 24MHz XOSC for the FRDM-MCXN947
+int enable_upll_clk(void) {
+	set_ahb_clk_ctrl(0, (1U << PORT0) | (1U << PORT1) | (1U << PORT2) | (1U << PORT3) | (1U << PORT4));
+	set_ahb_clk_ctrl(2, (1U << SCG));
+
+	// NOTE: to the FRDM-MCXN947 internal clock oscyllator running at 24MHz
+	int err = update_sosc_clk_freq(SOSC_20_30MHZ);
+	if (err) return err;
+
+	volatile scg_upll_csr_t* upll_csr_reg = (scg_upll_csr_t*) (scg_addr + scg_upll_csr_offset);
+	scg_upll_csr_t upll_csr = *upll_csr_reg;
+	upll_csr.lk = 0;
+	upll_csr.upll_cm = 1;
+	*upll_csr_reg = upll_csr;
+
+	while (!upll_csr_reg -> upll_vld) delay_us(1);
+	if (upll_csr_reg -> upll_err) return -1;
+
+	upll_csr.lk = 1;
+	*upll_csr_reg = upll_csr;
 
 	return 0;
 }

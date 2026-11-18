@@ -88,13 +88,14 @@ int increase_voltage_level(volatile spc_active_cfg_t* spc_active_cfg_addr, unsig
 	sram_ctl_.req = 0;
 	*sram_ctl = sram_ctl_;
 
-	//int err = update_clk_freq(MHZ_144);
+	// TODO: need to temporary switch to an unused clock for SysClk and then switch back to FIRC after setting it up
+	//int err = update_clk_freq(FIRC_144MHZ);
 	//return err;
 	return 0;
 }
 
 int decrease_voltage_level(volatile spc_active_cfg_t* spc_active_cfg_addr, unsigned int voltage_lvl) {
-	int err = update_firc_clk_freq(MHZ_48);
+	int err = update_firc_clk_freq(FIRC_48MHZ);
 	if (err) return err;
 
 	set_fctrl_rwsc(1);
