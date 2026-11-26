@@ -11,6 +11,8 @@
 #define MAX(a, b) ((a) >= (b) ? (a) : (b))
 #define CLAMP(val, min, max) (((val) >= (max)) ? (max) : (((val) <= (min)) ? (min) : (val)))
 
+#define __bkpt() __asm__ ("bkpt")
+
 UNUSED_FUNCTION static void memcpy(void* dest, const void* src, int size) {
 	if (dest == NULL || src == NULL) return;
 	uint8_t* dest_b = (uint8_t*) dest;

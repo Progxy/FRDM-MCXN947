@@ -1,25 +1,27 @@
 #include <utils.h>
 #include <debug_uart.h>
-#include <usb.h>
-#include <p3t1755.h>
+#include <els.h>
 
 void main(void) {
 	int err = 0;
 	char buf[256] = {0};
 
-	err = init_default_usb_device();
-	if (err) __asm__("bkpt");
-
-	unsigned int buf_size = snprintf(buf, 256, "usb initialized.\n");
+	unsigned int buf_size = snprintf(buf, 256, "els initialized.\n");
 	err = send_uart(buf, buf_size);
-	if (err) __asm__ ("bkpt");
+	if (err) __bkpt();
+
+	uint32_t r = rand(&err);
+	if (err) __bkpt();
+	buf_size = snprintf(buf, 256, "rand val: %lX.\n", r);
+	err = send_uart(buf, buf_size);
+	if (err) __bkpt();
 
 	unsigned int val = 0;
 	do {
 		memset(buf, 0, 256);
 		buf_size = snprintf(buf, 256, "val: %u\n", val++);
 		err = send_uart(buf, buf_size);
-		if (err) __asm__ ("bkpt");
+		if (err) __bkpt();
 		delay_ms(5000);
 	} while (TRUE);
 

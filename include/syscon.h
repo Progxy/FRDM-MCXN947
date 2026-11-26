@@ -31,14 +31,17 @@ typedef enum { DMA1_RST = 1, ENET_RST, USDHC_RST, FLEXIO_RST, SAI0_RST, SAI1_RST
 typedef enum { I3C_0_RST = 0, I3C_1_RST, SINC_RST, COOL_FLUX_RST, QDC0_RST, QDC1_RST, PWM0_RST, PWM1_RST, AO_I0_RST, DAC1_RST = 11, DAC2_RST, OPAMP0_RST, OPAMP1_RST, OPAMP2_RST, CMP2_RST = 18, VREF_RST, COOL_FLUX_APB_RST, NPU_RST, TSI_RST, EWM_RST, EIM_RST, SEMA42_RST = 27 } PeripheralResetCtrl3;
 typedef enum { CLKIN_ENA_FM_USBH_LPT = 1, FRO1MHZ_ENA, FRO12MHZ_ENA, FRO_HF_ENA, CLKIN_ENA, FRO1MHZ_CLK_ENA, PLU_DEGLITCH_CLK_ENA = 9 } ClockCtrl;
 
+// TODO: Check if writing to a certain field here auto-clears it after setting
+// the bit, otherwise we are setting the bits with the first call and then
+// unsetting them if the second call does not write them, also the same behaviour applies for clearing using the clear regs
 void set_ahb_clk_ctrl(unsigned int clk_ctrl_idx, const uint32_t value) {
-  volatile uint32_t* const addr = (uint32_t*) (syscon_addr + clk_ahb_ctrl_set_offsets[clk_ctrl_idx]);
+  volatile uint32_t* addr = (uint32_t*) (syscon_addr + clk_ahb_ctrl_set_offsets[clk_ctrl_idx]);
   *addr = value;
   return;
 }
 
 void clear_ahb_clk_ctrl(unsigned int clk_ctrl_idx, const uint32_t value) {
-  volatile uint32_t* const addr = (uint32_t*) (syscon_addr + clk_ahb_ctrl_clear_offsets[clk_ctrl_idx]);
+  volatile uint32_t* addr = (uint32_t*) (syscon_addr + clk_ahb_ctrl_clear_offsets[clk_ctrl_idx]);
   *addr = value;
   return;
 }
