@@ -10,16 +10,12 @@ void main(void) {
 	err = send_uart(buf, buf_size);
 	if (err) __bkpt();
 
-	uint32_t r = rand(&err);
-	if (err) __bkpt();
-	buf_size = snprintf(buf, 256, "rand val: %lX.\n", r);
-	err = send_uart(buf, buf_size);
-	if (err) __bkpt();
-
 	unsigned int val = 0;
 	do {
 		memset(buf, 0, 256);
-		buf_size = snprintf(buf, 256, "val: %u\n", val++);
+		uint32_t r = rand(&err);
+		if (err) __bkpt();
+		buf_size = snprintf(buf, 256, "rand val: %lX.\n", r);
 		err = send_uart(buf, buf_size);
 		if (err) __bkpt();
 		delay_ms(5000);

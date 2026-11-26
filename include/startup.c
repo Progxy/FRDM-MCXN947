@@ -21,9 +21,9 @@ void reset_handler(void);
 void hard_fault_handler(void);
 void nmi_handler(void)           __attribute__((weak, alias("default_handler"), naked, noreturn));
 void mem_manage_handler(void)    __attribute__((weak, alias("default_handler"), naked, noreturn));
-void bus_fault_handler(void)     __attribute__((weak, alias("default_handler"), naked, noreturn));
+void bus_fault_handler(void);
 void usage_fault_handler(void)   __attribute__((weak, alias("default_handler"), naked, noreturn));
-void secure_fault_handler(void)  __attribute__((weak, alias("default_handler"), naked, noreturn));
+void secure_fault_handler(void);
 void sv_call_handler(void)       __attribute__((weak, alias("default_handler"), naked, noreturn));
 void debug_monitor_handler(void) __attribute__((weak, alias("default_handler"), naked, noreturn));
 void pend_sv_handler(void)       __attribute__((weak, alias("default_handler"), naked, noreturn));
@@ -36,6 +36,7 @@ void i3c1_handler(void)          __attribute__((weak, alias("default_handler"), 
 void enet_handler(void)          __attribute__((weak, alias("default_handler"), naked, noreturn));
 void enet_pm_handler(void)       __attribute__((weak, alias("default_handler"), naked, noreturn));
 void enet_lpi_handler(void)      __attribute__((weak, alias("default_handler"), naked, noreturn));
+void els_handler(void)           __attribute__((weak, alias("default_handler"), naked, noreturn));
 
 extern const uint32_t vector_table[];
 
@@ -135,7 +136,7 @@ const uint32_t vector_table[] = {
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
-	(uint32_t) default_handler,
+	(uint32_t) els_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
 	(uint32_t) default_handler,
@@ -286,6 +287,18 @@ void default_handler(void) {
 
 __attribute__((section(".after_vectors.hard_fault_handler"), naked, noreturn))
 void hard_fault_handler(void) {
+	__asm__ volatile("bkpt");
+    __asm__ volatile("bx lr");
+}
+
+__attribute__((section(".after_vectors.secure_fault_handler"), naked, noreturn))
+void secure_fault_handler(void) {
+	__asm__ volatile("bkpt");
+    __asm__ volatile("bx lr");
+}
+
+__attribute__((section(".after_vectors.bus_fault_handler"), naked, noreturn))
+void bus_fault_handler(void) {
 	__asm__ volatile("bkpt");
     __asm__ volatile("bx lr");
 }

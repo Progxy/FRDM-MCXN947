@@ -3,7 +3,7 @@
 
 #include <utils.h>
 
-static const unsigned int els_base_addr = 0x40004000;
+static const unsigned int els_base_addr = 0x40054000;
 const unsigned int els_status_addr = 0x00;
 const unsigned int els_ctrl_addr = 0x04;
 const unsigned int els_cmd_cfg0_addr = 0x08;
@@ -48,10 +48,6 @@ __attribute__((constructor(105))) int init_els(void) {
 	els_ctrl_t els_ctrl = *(els_ctrl_t*)els_ctrl_reg;
 	els_ctrl.els_en = 1;
 	*els_ctrl_reg = *((uint32_t*)&els_ctrl);
-	while (((els_ctrl_t*)els_ctrl_reg) -> els_en) delay_us(1);
-
-	els_ctrl.els_en = 1;
-	*els_ctrl_reg = *((uint32_t*)&els_ctrl);
 
 	volatile els_status_t* els_status = (els_status_t*) (els_base_addr + els_status_addr);
 	while (els_status -> els_busy) delay_us(1);
@@ -93,17 +89,28 @@ int rnd_req(const void* res_ptr, const uint16_t size, const uint8_t low_ent_init
 
 uint32_t rand(int* err) {
 	*err = 0;
+	volatile uint32_t* els_ctrl_reg = (uint32_t*) (els_base_addr + els_ctrl_addr);
+	if ((*els_ctrl_reg & 0x01) == 0) __bkpt();
+
 	volatile els_status_t* els_status = (els_status_t*) (els_base_addr + els_status_addr);
-	if (els_status -> drbg_ent_lvl == 0) {
+	els_status_t s = *els_status;
+	// TODO: somehow cannot dereference directly this field without getting a bus fault
+	if (s.drbg_ent_lvl == 0) {
 		uint32_t temp = 0;
 		if (rnd_req(&temp, 4, 1, 0) != 0) {
 			*err = -ELS_OP_ERR;
 			return 0;
 		}
 	}
+
 	while (!els_status -> prng_rdy) delay_us(1);
-	volatile uint32_t* els_prng_datout = (uint32_t*) (els_base_addr + els_prng_datout_addr);
-	return *els_prng_datout;
+	return *(uint32_t*) (els_base_addr + els_prng_datout_addr);
+}
+
+__attribute__((section(".after_vectors.els_handler"), naked, noreturn))
+void els_handler(void) {
+	__bkpt();
+	__asm__("bx lr");
 }
 
 #endif //_ELS_H_
